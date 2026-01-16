@@ -7,6 +7,7 @@
 #include "bsp_private.h"
 #include "misc/bsp_display.h"
 #include "driver/i2c_master.h"
+#include "esp_lcd_touch.h"
 
 typedef struct {
     i2c_master_bus_handle_t i2c_bus;
@@ -20,4 +21,4 @@ typedef struct st7123_touch_state *st7123_touch_t;
 
 BSP_NONNULL(1, 2) esp_err_t st7123_touch_init(const st7123_touch_config_t *config, st7123_touch_t *touch);
 BSP_NONNULL(1) esp_err_t st7123_touch_deinit(st7123_touch_t touch);
-BSP_NONNULL(1, 2) int st7123_touch_read(st7123_touch_t touch, bsp_point_t *points, uint8_t max_points);
+BSP_NONNULL(1, 2) int st7123_touch_read(st7123_touch_t touch, esp_lcd_touch_point_data_t *points, uint8_t max_points);

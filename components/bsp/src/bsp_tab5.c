@@ -139,7 +139,7 @@ void bsp_tab5_display_flush(int fb_index) {
 }
 
 // MARK: Touch Panel
-int bsp_tab5_touch_read(bsp_point_t *points, uint8_t max_points) {
+int bsp_tab5_touch_read(esp_lcd_touch_point_data_t *points, uint8_t max_points) {
     if (gt911) return gt911_touch_read(gt911, points, max_points);
     if (st7123_touch) return st7123_touch_read(st7123_touch, points, max_points);
     return 0;

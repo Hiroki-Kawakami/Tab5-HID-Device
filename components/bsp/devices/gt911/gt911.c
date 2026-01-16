@@ -66,7 +66,7 @@ esp_err_t gt911_touch_deinit(gt911_touch_t touch) {
     return ESP_OK;
 }
 
-int gt911_touch_read(gt911_touch_t touch, bsp_point_t *points, uint8_t max_points) {
+int gt911_touch_read(gt911_touch_t touch, esp_lcd_touch_point_data_t *points, uint8_t max_points) {
     if (max_points == 0) return 0;
     if (max_points > 5) max_points = 5;
 
@@ -76,15 +76,7 @@ int gt911_touch_read(gt911_touch_t touch, bsp_point_t *points, uint8_t max_point
         return 0;
     }
 
-    esp_lcd_touch_point_data_t point_data[5];
     uint8_t count = 0;
-
-    esp_lcd_touch_get_data(touch->handle, point_data, &count, max_points);
-
-    for (int i = 0; i < count; i++) {
-        points[i].x = (int)point_data[i].x;
-        points[i].y = (int)point_data[i].y;
-    }
-
+    esp_lcd_touch_get_data(touch->handle, points, &count, max_points);
     return count;
 }

@@ -1,18 +1,11 @@
 #include <assert.h>
 #include <stdio.h>
-#include <stdbool.h>
-#include <string.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "bsp_tab5.h"
 #include "driver/ppa.h"
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_heap_caps.h"
 #include "esp_lvgl_port.h"
-#include "display/lv_display.h"
-#include "hal/ppa_types.h"
-#include "misc/lv_color.h"
 
 static const char *TAG = "main";
 
@@ -32,13 +25,18 @@ static void lvgl_setup() {
     }
 }
 
-#define GUI_WIDTH       (640)
-#define GUI_HEIGHT      (360)
-#define GUI_BUFFER_SIZE (GUI_WIDTH * GUI_HEIGHT * 2)
+#define GUI_WIDTH         (640)
+#define GUI_HEIGHT        (360)
+#define GUI_SCALE_X       (720.0 / GUI_HEIGHT)
+#define GUI_SCALE_Y       (1280.0 / GUI_WIDTH)
+#define GUI_BUFFER_SIZE   (GUI_WIDTH * GUI_HEIGHT * 2)
+#define GUI_TOUCH_NUM_MAX CONFIG_ESP_LCD_TOUCH_MAX_POINTS
 static ppa_client_handle_t gui_ppa;
 static void *gui_buffer;
 static uint8_t const gui_fb_num = 2;
 static uint8_t gui_fb_index = 0;
+static int gui_touch_num;
+static esp_lcd_touch_point_data_t gui_touches[GUI_TOUCH_NUM_MAX];
 static void gui_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
     ppa_srm_oper_config_t config = {
         .in = {
@@ -61,8 +59,8 @@ static void gui_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map
             .srm_cm = PPA_SRM_COLOR_MODE_RGB565,
         },
         .rotation_angle = PPA_SRM_ROTATION_ANGLE_90,
-        .scale_x = 720.0 / GUI_HEIGHT,
-        .scale_y = 1280.0 / GUI_WIDTH,
+        .scale_x = GUI_SCALE_X,
+        .scale_y = GUI_SCALE_Y,
     };
     esp_err_t err = ppa_do_scale_rotate_mirror(gui_ppa, &config);
     if (err != ESP_OK) {
@@ -73,19 +71,32 @@ static void gui_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map
     gui_fb_index = (gui_fb_index + 1) % gui_fb_num;
     lv_display_flush_ready(disp);
 }
-
-static void lv_example_get_started_1(void) {
-    /*Change the active screen's background color*/
-    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(0x003a57), LV_PART_MAIN);
-
-    /*Create a white label, set its text and align it to the center*/
-    lv_obj_t * label = lv_label_create(lv_screen_active());
-    lv_label_set_text(label, "Hello world");
-    lv_obj_set_style_text_color(lv_screen_active(), lv_color_hex(0xffffff), LV_PART_MAIN);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+static void gui_input_read(lv_indev_t *indev, lv_indev_data_t *data) {
+    int indev_id = (int)lv_indev_get_user_data(indev);
+    if (indev_id == 0) gui_touch_num = bsp_tab5_touch_read(gui_touches, GUI_TOUCH_NUM_MAX);
+    for (int i = 0; i < gui_touch_num; i++) {
+        if (gui_touches[i].track_id == indev_id) {
+            data->state = LV_INDEV_STATE_PRESSED;
+            data->point.x = (1280 - gui_touches[i].y) / GUI_SCALE_X;
+            data->point.y = gui_touches[i].x / GUI_SCALE_Y;
+            return;
+        }
+    }
+    data->state = LV_INDEV_STATE_RELEASED;
 }
 
-int app_main() {
+static void lv_example_get_started_1(void) {
+    for (int i = 0; i < 3; i++) {
+        lv_obj_t *button = lv_button_create(lv_screen_active());
+        lv_obj_align(button, LV_ALIGN_TOP_LEFT, 10 + 100 * i, 10 + 100 * i);
+
+        lv_obj_t *label = lv_label_create(button);
+        lv_label_set_text(label, "BUTTON");
+        lv_obj_center(label);
+    }
+}
+
+void app_main() {
     bsp_tab5_init(&(bsp_tab5_config_t){
         .fb_num = gui_fb_num,
     });
@@ -104,20 +115,12 @@ int app_main() {
     lv_display_set_flush_cb(disp, gui_flush);
     bsp_tab5_display_set_brightness(80);
 
-    lv_example_get_started_1();
-
-    while (true) {
-        bsp_point_t points[5];
-        int touch_num = bsp_tab5_touch_read(points, 5);
-        if (touch_num) {
-            char str[64] = {}, *sptr = str;
-            for (int i = 0; i < touch_num; i++) {
-                int step = sprintf(sptr, "(%d, %d) ", points[i].x, points[i].y);
-                sptr += step;
-            }
-            printf("Touch: %s\n", str);
-        }
-
-        vTaskDelay(30 / portTICK_PERIOD_MS);
+    for (int i = 0; i < GUI_TOUCH_NUM_MAX; i++) {
+        lv_indev_t *indev = lv_indev_create();
+        lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
+        lv_indev_set_user_data(indev, (void*)i);
+        lv_indev_set_read_cb(indev, gui_input_read);
     }
+
+    lv_example_get_started_1();
 }
