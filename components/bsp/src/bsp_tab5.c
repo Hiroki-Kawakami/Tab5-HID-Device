@@ -14,6 +14,7 @@
 #include "pi4io/pi4io.h"
 #include "soc/gpio_num.h"
 #include "st7123/st7123_lcd.h"
+#include "st7123/st7123_touch.h"
 
 #define I2C0_PORT_NUM (0)
 static i2c_master_bus_handle_t i2c0;
@@ -21,6 +22,7 @@ static pi4io_t pi4ioe1, pi4ioe2;
 
 static void **frame_buffers;
 static st7123_lcd_t st7123_lcd;
+static st7123_touch_t st7123_touch;
 
 esp_err_t bsp_tab5_init(void) {
     esp_err_t err;
@@ -77,6 +79,16 @@ esp_err_t bsp_tab5_init(void) {
     BSP_RETURN_ERR(err);
     frame_buffers = st7123_lcd_get_frame_buffers(st7123_lcd);
 
+    // Initialize ST7123 Touch Panel
+    err = st7123_touch_init(&(st7123_touch_config_t){
+        .i2c_bus = i2c0,
+        .size = (bsp_size_t){ 720, 1280 },
+        .int_gpio = GPIO_NUM_23,
+        .rst_gpio = GPIO_NUM_NC,
+        .scl_speed_hz = 100000,
+    }, &st7123_touch);
+    BSP_RETURN_ERR(err);
+
     return ESP_OK;
 }
 
@@ -89,4 +101,10 @@ void *bsp_tab5_display_get_frame_buffer(int fb_index) {
 }
 void bsp_tab5_display_flush(int fb_index) {
     if (st7123_lcd) st7123_lcd_flush(st7123_lcd, fb_index);
+}
+
+// MARK: Touch Panel
+int bsp_tab5_touch_read(bsp_point_t *points, uint8_t max_points) {
+    if (st7123_touch) return st7123_touch_read(st7123_touch, points, max_points);
+    return 0;
 }

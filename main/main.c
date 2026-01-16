@@ -14,7 +14,17 @@ int app_main() {
     bsp_tab5_display_set_brightness(80);
 
     while (true) {
-        printf("HELLO!\n");
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        bsp_point_t points[5];
+        int touch_num = bsp_tab5_touch_read(points, 5);
+        if (touch_num) {
+            char str[64] = {}, *sptr = str;
+            for (int i = 0; i < touch_num; i++) {
+                int step = sprintf(sptr, "(%d, %d) ", points[i].x, points[i].y);
+                sptr += step;
+            }
+            printf("Touch: %s\n", str);
+        }
+
+        vTaskDelay(30 / portTICK_PERIOD_MS);
     }
 }
