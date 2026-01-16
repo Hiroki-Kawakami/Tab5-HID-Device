@@ -8,7 +8,15 @@
 #include "esp_lcd_touch.h"
 
 typedef struct {
-    uint8_t fb_num;
+    struct {
+        uint8_t fb_num;
+    } display;
+    struct {
+        bool enable;
+    } wifi;
+    struct {
+        bool enable;
+    } bluetooth;
 } bsp_tab5_config_t;
 
 esp_err_t bsp_tab5_init(const bsp_tab5_config_t *config);

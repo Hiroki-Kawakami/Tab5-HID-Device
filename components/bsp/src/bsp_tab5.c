@@ -10,13 +10,16 @@
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "misc/bsp_display.h"
-#include "soc/clk_tree_defs.h"
 #include "pi4io/pi4io.h"
-#include "soc/gpio_num.h"
 #include "ili9881c/ili9881c.h"
 #include "gt911/gt911.h"
 #include "st7123/st7123_lcd.h"
 #include "st7123/st7123_touch.h"
+#include "nvs_flash.h"
+#include "esp_hosted.h"
+#include "nimble/nimble_port.h"
+
+static const char *TAG = "BSP_TAB5";
 
 #define I2C0_PORT_NUM (0)
 static i2c_master_bus_handle_t i2c0;
@@ -33,7 +36,7 @@ esp_err_t bsp_tab5_init(const bsp_tab5_config_t *config) {
 
     // Check config values
     bsp_tab5_config_t tmp_config = *config;
-    if (!tmp_config.fb_num) tmp_config.fb_num = 1;
+    if (!tmp_config.display.fb_num) tmp_config.display.fb_num = 1;
     config = &tmp_config;
 
     // Initialize I2C0 bus
@@ -84,7 +87,7 @@ esp_err_t bsp_tab5_init(const bsp_tab5_config_t *config) {
             .backlight_gpio = GPIO_NUM_22,
             .size = (bsp_size_t){ 720, 1280 },
             .pixel_format = BSP_PIXEL_FORMAT_RGB565,
-            .fb_num = config->fb_num,
+            .fb_num = config->display.fb_num,
         }, &st7123_lcd);
         BSP_RETURN_ERR(err);
         frame_buffers = st7123_lcd_get_frame_buffers(st7123_lcd);
@@ -104,7 +107,7 @@ esp_err_t bsp_tab5_init(const bsp_tab5_config_t *config) {
             .backlight_gpio = GPIO_NUM_22,
             .size = (bsp_size_t){ 720, 1280 },
             .pixel_format = BSP_PIXEL_FORMAT_RGB565,
-            .fb_num = config->fb_num,
+            .fb_num = config->display.fb_num,
         }, &ili9881c);
         BSP_RETURN_ERR(err);
         frame_buffers = ili9881c_lcd_get_frame_buffers(ili9881c);
@@ -120,6 +123,40 @@ esp_err_t bsp_tab5_init(const bsp_tab5_config_t *config) {
         BSP_RETURN_ERR(err);
     } else {
         return ESP_ERR_NOT_FOUND;
+    }
+
+    if (config->wifi.enable || config->bluetooth.enable) {
+        // NVS (for WiFi & Bluetooth)
+        err = nvs_flash_init();
+        if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+            if ((err = nvs_flash_erase()) == ESP_OK) {
+                err = nvs_flash_init();
+            }
+        }
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize NVS flash");
+            return err;
+        }
+    }
+
+    // WiFi
+    if (config->wifi.enable) {
+        ESP_LOGE(TAG, "WiFi initialization not implemented yet!");
+        assert(0);
+        // ESP_ERROR_CHECK(esp_netif_init());
+        // ESP_ERROR_CHECK(esp_event_loop_create_default());
+        // esp_netif_create_default_wifi_ap();
+        // wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+        // ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    }
+
+    // Bluetooth
+    if (config->bluetooth.enable) {
+        err = nimble_port_init();
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to initialize NimBLE");
+            return err;
+        }
     }
 
     return ESP_OK;
