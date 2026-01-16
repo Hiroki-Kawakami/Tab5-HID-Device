@@ -28,8 +28,13 @@ static gt911_touch_t gt911;
 static st7123_lcd_t st7123_lcd;
 static st7123_touch_t st7123_touch;
 
-esp_err_t bsp_tab5_init(void) {
+esp_err_t bsp_tab5_init(const bsp_tab5_config_t *config) {
     esp_err_t err;
+
+    // Check config values
+    bsp_tab5_config_t tmp_config = *config;
+    if (!tmp_config.fb_num) tmp_config.fb_num = 1;
+    config = &tmp_config;
 
     // Initialize I2C0 bus
     err = i2c_new_master_bus(&(i2c_master_bus_config_t){
@@ -79,7 +84,7 @@ esp_err_t bsp_tab5_init(void) {
             .backlight_gpio = GPIO_NUM_22,
             .size = (bsp_size_t){ 720, 1280 },
             .pixel_format = BSP_PIXEL_FORMAT_RGB565,
-            .fb_num = 1,
+            .fb_num = config->fb_num,
         }, &st7123_lcd);
         BSP_RETURN_ERR(err);
         frame_buffers = st7123_lcd_get_frame_buffers(st7123_lcd);
@@ -99,7 +104,7 @@ esp_err_t bsp_tab5_init(void) {
             .backlight_gpio = GPIO_NUM_22,
             .size = (bsp_size_t){ 720, 1280 },
             .pixel_format = BSP_PIXEL_FORMAT_RGB565,
-            .fb_num = 1,
+            .fb_num = config->fb_num,
         }, &ili9881c);
         BSP_RETURN_ERR(err);
         frame_buffers = ili9881c_lcd_get_frame_buffers(ili9881c);
