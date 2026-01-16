@@ -13,6 +13,7 @@
 #include "soc/clk_tree_defs.h"
 #include "pi4io/pi4io.h"
 #include "soc/gpio_num.h"
+#include "ili9881c/ili9881c.h"
 #include "st7123/st7123_lcd.h"
 #include "st7123/st7123_touch.h"
 
@@ -21,6 +22,7 @@ static i2c_master_bus_handle_t i2c0;
 static pi4io_t pi4ioe1, pi4ioe2;
 
 static void **frame_buffers;
+static ili9881c_lcd_t ili9881c;
 static st7123_lcd_t st7123_lcd;
 static st7123_touch_t st7123_touch;
 
@@ -69,37 +71,53 @@ esp_err_t bsp_tab5_init(void) {
     pi4io_set_output(pi4ioe1, 5, true);   // TP_RST = High
     vTaskDelay(pdMS_TO_TICKS(100));
 
-    // Initialize ST7123 LCD
-    err = st7123_lcd_init(&(st7123_lcd_config_t){
-        .backlight_gpio = GPIO_NUM_22,
-        .size = (bsp_size_t){ 720, 1280 },
-        .pixel_format = BSP_PIXEL_FORMAT_RGB565,
-        .fb_num = 1,
-    }, &st7123_lcd);
-    BSP_RETURN_ERR(err);
-    frame_buffers = st7123_lcd_get_frame_buffers(st7123_lcd);
+    if (i2c_master_probe(i2c0, 0x55, 10) == ESP_OK) {
+        // Initialize ST7123 LCD
+        err = st7123_lcd_init(&(st7123_lcd_config_t){
+            .backlight_gpio = GPIO_NUM_22,
+            .size = (bsp_size_t){ 720, 1280 },
+            .pixel_format = BSP_PIXEL_FORMAT_RGB565,
+            .fb_num = 1,
+        }, &st7123_lcd);
+        BSP_RETURN_ERR(err);
+        frame_buffers = st7123_lcd_get_frame_buffers(st7123_lcd);
 
-    // Initialize ST7123 Touch Panel
-    err = st7123_touch_init(&(st7123_touch_config_t){
-        .i2c_bus = i2c0,
-        .size = (bsp_size_t){ 720, 1280 },
-        .int_gpio = GPIO_NUM_23,
-        .rst_gpio = GPIO_NUM_NC,
-        .scl_speed_hz = 100000,
-    }, &st7123_touch);
-    BSP_RETURN_ERR(err);
+        // Initialize ST7123 Touch Panel
+        err = st7123_touch_init(&(st7123_touch_config_t){
+            .i2c_bus = i2c0,
+            .size = (bsp_size_t){ 720, 1280 },
+            .int_gpio = GPIO_NUM_23,
+            .rst_gpio = GPIO_NUM_NC,
+            .scl_speed_hz = 100000,
+        }, &st7123_touch);
+        BSP_RETURN_ERR(err);
+    } else if (i2c_master_probe(i2c0, 0x14, 10) == ESP_OK) {
+        // Initialize ILI9881C LCD
+        err = ili9881c_lcd_init(&(ili9881c_lcd_config_t){
+            .backlight_gpio = GPIO_NUM_22,
+            .size = (bsp_size_t){ 720, 1280 },
+            .pixel_format = BSP_PIXEL_FORMAT_RGB565,
+            .fb_num = 1,
+        }, &ili9881c);
+        BSP_RETURN_ERR(err);
+        frame_buffers = ili9881c_lcd_get_frame_buffers(ili9881c);
+    } else {
+        return ESP_ERR_NOT_FOUND;
+    }
 
     return ESP_OK;
 }
 
 // MARK: Display
 void bsp_tab5_display_set_brightness(int brightness) {
+    if (ili9881c) ili9881c_lcd_set_brightness(ili9881c, brightness);
     if (st7123_lcd) st7123_lcd_set_brightness(st7123_lcd, brightness);
 }
 void *bsp_tab5_display_get_frame_buffer(int fb_index) {
     return frame_buffers[fb_index];
 }
 void bsp_tab5_display_flush(int fb_index) {
+    if (ili9881c) ili9881c_lcd_flush(ili9881c, fb_index);
     if (st7123_lcd) st7123_lcd_flush(st7123_lcd, fb_index);
 }
 
