@@ -14,6 +14,7 @@
 #include "pi4io/pi4io.h"
 #include "soc/gpio_num.h"
 #include "ili9881c/ili9881c.h"
+#include "gt911/gt911.h"
 #include "st7123/st7123_lcd.h"
 #include "st7123/st7123_touch.h"
 
@@ -23,6 +24,7 @@ static pi4io_t pi4ioe1, pi4ioe2;
 
 static void **frame_buffers;
 static ili9881c_lcd_t ili9881c;
+static gt911_touch_t gt911;
 static st7123_lcd_t st7123_lcd;
 static st7123_touch_t st7123_touch;
 
@@ -101,6 +103,16 @@ esp_err_t bsp_tab5_init(void) {
         }, &ili9881c);
         BSP_RETURN_ERR(err);
         frame_buffers = ili9881c_lcd_get_frame_buffers(ili9881c);
+
+        // Initialize GT911 Touch Panel
+        err = gt911_touch_init(&(gt911_touch_config_t){
+            .i2c_bus = i2c0,
+            .size = (bsp_size_t){ 720, 1280 },
+            .int_gpio = GPIO_NUM_23,
+            .rst_gpio = GPIO_NUM_NC,
+            .scl_speed_hz = 100000,
+        }, &gt911);
+        BSP_RETURN_ERR(err);
     } else {
         return ESP_ERR_NOT_FOUND;
     }
@@ -123,6 +135,7 @@ void bsp_tab5_display_flush(int fb_index) {
 
 // MARK: Touch Panel
 int bsp_tab5_touch_read(bsp_point_t *points, uint8_t max_points) {
+    if (gt911) return gt911_touch_read(gt911, points, max_points);
     if (st7123_touch) return st7123_touch_read(st7123_touch, points, max_points);
     return 0;
 }

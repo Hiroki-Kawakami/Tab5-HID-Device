@@ -11,8 +11,8 @@
 typedef struct {
     i2c_master_bus_handle_t i2c_bus;
     bsp_size_t size;
-    int int_gpio;
-    int rst_gpio;
+    gpio_num_t int_gpio;
+    gpio_num_t rst_gpio;
     uint32_t scl_speed_hz;
 } st7123_touch_config_t;
 
