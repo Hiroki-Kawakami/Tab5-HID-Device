@@ -305,6 +305,71 @@ bool hid_device_connected(void)
     return connected && esp_hidd_dev_connected(hid_dev);
 }
 
+// Current keyboard state
+static uint8_t current_modifiers = 0;
+static uint8_t current_keys[6] = {0};
+
+static esp_err_t hid_device_send_report(void)
+{
+    if (!hid_device_connected()) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    uint8_t report[8] = {0};
+    report[0] = current_modifiers;
+    // report[1] is reserved
+    memcpy(&report[2], current_keys, 6);
+
+    esp_err_t ret = esp_hidd_dev_input_set(hid_dev, 0, 1, report, sizeof(report));
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to send report: %s", esp_err_to_name(ret));
+    }
+    return ret;
+}
+
+esp_err_t hid_device_key_press(uint8_t keycode)
+{
+    // Modifier keys (0xE0-0xE7)
+    if (keycode >= 0xE0 && keycode <= 0xE7) {
+        current_modifiers |= (1 << (keycode - 0xE0));
+        return hid_device_send_report();
+    }
+
+    // Regular keys - find empty slot
+    for (int i = 0; i < 6; i++) {
+        if (current_keys[i] == keycode) {
+            // Already pressed
+            return ESP_OK;
+        }
+    }
+    for (int i = 0; i < 6; i++) {
+        if (current_keys[i] == 0) {
+            current_keys[i] = keycode;
+            return hid_device_send_report();
+        }
+    }
+    // No empty slot (6-key rollover limit)
+    return ESP_ERR_NO_MEM;
+}
+
+esp_err_t hid_device_key_release(uint8_t keycode)
+{
+    // Modifier keys (0xE0-0xE7)
+    if (keycode >= 0xE0 && keycode <= 0xE7) {
+        current_modifiers &= ~(1 << (keycode - 0xE0));
+        return hid_device_send_report();
+    }
+
+    // Regular keys - find and remove
+    for (int i = 0; i < 6; i++) {
+        if (current_keys[i] == keycode) {
+            current_keys[i] = 0;
+            return hid_device_send_report();
+        }
+    }
+    return ESP_OK;
+}
+
 esp_err_t hid_device_send_key(uint8_t modifier, uint8_t keycode)
 {
     if (!hid_device_connected()) {
@@ -324,6 +389,9 @@ esp_err_t hid_device_send_key(uint8_t modifier, uint8_t keycode)
 
 esp_err_t hid_device_release_keys(void)
 {
+    current_modifiers = 0;
+    memset(current_keys, 0, sizeof(current_keys));
+
     if (!hid_device_connected()) {
         return ESP_ERR_INVALID_STATE;
     }

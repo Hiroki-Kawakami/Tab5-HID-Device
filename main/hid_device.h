@@ -47,6 +47,25 @@ esp_err_t hid_device_send_key(uint8_t modifier, uint8_t keycode);
 esp_err_t hid_device_release_keys(void);
 
 /**
+ * @brief Press a key (add to currently pressed keys)
+ *
+ * For modifier keys (0xE0-0xE7), sets the modifier bit.
+ * For regular keys, adds to the key array (up to 6 keys).
+ *
+ * @param keycode HID keycode (0x00-0xFF, modifiers are 0xE0-0xE7)
+ * @return ESP_OK on success
+ */
+esp_err_t hid_device_key_press(uint8_t keycode);
+
+/**
+ * @brief Release a key (remove from currently pressed keys)
+ *
+ * @param keycode HID keycode to release
+ * @return ESP_OK on success
+ */
+esp_err_t hid_device_key_release(uint8_t keycode);
+
+/**
  * @brief Send a single character (press and release)
  *
  * Supports: a-z, A-Z, 0-9, space, newline
