@@ -7,87 +7,9 @@
 #include "esp_err.h"
 #include "esp_heap_caps.h"
 #include "esp_lvgl_port.h"
-#include "nimble/nimble_port.h"
-#include "nimble/nimble_port_freertos.h"
-#include "host/ble_hs.h"
-#include "host/util/util.h"
-#include "services/gap/ble_svc_gap.h"
-#include "services/gatt/ble_svc_gatt.h"
+#include "hid_device.h"
 
 static const char *TAG = "main";
-
-/*
- * MARK: Bluetooth
- */
-static void ble_host_task(void *param) {
-    nimble_port_run();
-    nimble_port_freertos_deinit();
-}
-
-static void ble_start_advertise() {
-    struct ble_gap_adv_params adv_params = {0};
-    struct ble_hs_adv_fields fields = {0};
-
-    // Advertise flags: general discoverable + BLE only
-    fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
-
-    // Include device name
-    fields.name = (uint8_t *)ble_svc_gap_device_name();
-    fields.name_len = strlen(ble_svc_gap_device_name());
-    fields.name_is_complete = 1;
-
-    int rc = ble_gap_adv_set_fields(&fields);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Failed to set adv fields; rc=%d", rc);
-        return;
-    }
-
-    // Connectable undirected advertising
-    adv_params.conn_mode = BLE_GAP_CONN_MODE_UND;
-    adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN;
-
-    rc = ble_gap_adv_start(BLE_OWN_ADDR_PUBLIC, NULL, BLE_HS_FOREVER,
-                           &adv_params, NULL, NULL);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Failed to start advertising; rc=%d", rc);
-        return;
-    }
-    ESP_LOGI(TAG, "Advertising started");
-}
-
-static void ble_on_sync() {
-    ESP_LOGI(TAG, "ble_on_sync");
-
-    // Ensure proper address
-    int rc = ble_hs_util_ensure_addr(0);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Failed to ensure address; rc=%d", rc);
-        return;
-    }
-
-    ble_start_advertise();
-}
-static void ble_on_reset(int reason) {
-
-}
-
-static void ble_init() {
-    // Configure NimBLE host
-    ble_hs_cfg.reset_cb = ble_on_reset;
-    ble_hs_cfg.sync_cb = ble_on_sync;
-    ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
-
-    ble_svc_gap_init();
-    ble_svc_gatt_init();
-
-    // Configure GAP
-    int rc = ble_svc_gap_device_name_set("M5StackTab5");
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Failed to set device name; rc=%d", rc);
-        ESP_ERROR_CHECK(ESP_FAIL);
-    }
-    nimble_port_freertos_init(ble_host_task);
-}
 
 /*
  * MARK: LVGL
@@ -168,15 +90,28 @@ static void gui_input_read(lv_indev_t *indev, lv_indev_data_t *data) {
     data->state = LV_INDEV_STATE_RELEASED;
 }
 
-static void lv_example_get_started_1(void *user_data) {
-    for (int i = 0; i < 3; i++) {
-        lv_obj_t *button = lv_button_create(lv_screen_active());
-        lv_obj_align(button, LV_ALIGN_TOP_LEFT, 10 + 100 * i, 10 + 100 * i);
-
-        lv_obj_t *label = lv_label_create(button);
-        lv_label_set_text(label, "BUTTON");
-        lv_obj_center(label);
+static void btn_send_test_cb(lv_event_t *e) {
+    if (hid_device_connected()) {
+        hid_device_send_string("Hello from Tab5");
+        ESP_LOGI(TAG, "Sent test string");
+    } else {
+        ESP_LOGW(TAG, "Not connected");
     }
+}
+
+static void lv_example_keyboard(void *user_data) {
+    lv_obj_t *label = lv_label_create(lv_screen_active());
+    lv_label_set_text(label, "BLE Keyboard - Waiting for connection...");
+    lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 20);
+
+    lv_obj_t *btn = lv_button_create(lv_screen_active());
+    lv_obj_align(btn, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_size(btn, 200, 80);
+    lv_obj_add_event_cb(btn, btn_send_test_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *btn_label = lv_label_create(btn);
+    lv_label_set_text(btn_label, "Send Test");
+    lv_obj_center(btn_label);
 }
 
 void app_main() {
@@ -184,7 +119,10 @@ void app_main() {
         .display.fb_num = gui_fb_num,
         .bluetooth.enable = true,
     });
-    ble_init();
+
+    // Initialize HID keyboard
+    ESP_ERROR_CHECK(hid_device_init());
+
     lvgl_setup();
 
     esp_err_t err = ppa_register_client(&(ppa_client_config_t){
@@ -204,5 +142,5 @@ void app_main() {
         lv_indev_set_read_cb(indev, gui_input_read);
     }
 
-    lv_async_call(lv_example_get_started_1, NULL);
+    lv_async_call(lv_example_keyboard, NULL);
 }
