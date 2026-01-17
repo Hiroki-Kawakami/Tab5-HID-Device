@@ -4,7 +4,7 @@
  */
 
 #include "layout.h"
-#include "../hid_device.h"
+#include "hid_device.h"
 #include "esp_log.h"
 
 #define ROW1_HEIGHT 30
@@ -106,9 +106,9 @@ static void button_event(lv_event_t* event) {
 
     lv_event_code_t code = lv_event_get_code(event);
     if (code == LV_EVENT_PRESSED) {
-        hid_device_key_press(key->code);
+        // hid_device_key_press(key->code);
     } else if (code == LV_EVENT_RELEASED) {
-        hid_device_key_release(key->code);
+        // hid_device_key_release(key->code);
     } else if (code == LV_EVENT_PRESSING) {
         // ボタン範囲外に出たらリリース
         lv_obj_t *btn = lv_event_get_target(event);
@@ -116,7 +116,7 @@ static void button_event(lv_event_t* event) {
         lv_point_t point;
         lv_indev_get_point(indev, &point);
         if (!lv_obj_hit_test(btn, &point)) {
-            hid_device_key_release(key->code);
+            // hid_device_key_release(key->code);
             lv_obj_remove_state(btn, LV_STATE_PRESSED);
         }
     }

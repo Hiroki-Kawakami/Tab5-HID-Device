@@ -131,15 +131,6 @@ static void theme_load() {
     lv_obj_add_style(lv_screen_active(), &theme_style.screen, LV_STATE_DEFAULT);
 }
 
-static void btn_send_test_cb(lv_event_t *e) {
-    if (hid_device_connected()) {
-        hid_device_send_string("Hello from Tab5");
-        ESP_LOGI(TAG, "Sent test string");
-    } else {
-        ESP_LOGW(TAG, "Not connected");
-    }
-}
-
 static void build_layout(void *user_data) {
     theme_load();
     _layout_head->config->build(lv_screen_active());
@@ -152,7 +143,7 @@ void app_main() {
     });
 
     // Initialize HID keyboard
-    ESP_ERROR_CHECK(hid_device_init());
+    ESP_ERROR_CHECK(hid_device_init(&hid_device_profile_keyboard));
 
     lvgl_setup();
 
