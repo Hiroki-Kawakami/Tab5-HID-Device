@@ -136,6 +136,108 @@ static void show_passkey_display(passkey_info_t *info) {
     lv_obj_center(msgbox);
 }
 
+typedef struct {
+    connect_screen_t *screen;
+    lv_obj_t *msgbox;
+    lv_obj_t *input_label;
+    char input[7];
+    int input_len;
+} passkey_input_ctx_t;
+
+static void passkey_input_update_label(passkey_input_ctx_t *ctx) {
+    if (ctx->input_len == 0) {
+        lv_label_set_text(ctx->input_label, "______");
+    } else {
+        lv_label_set_text(ctx->input_label, ctx->input);
+    }
+}
+
+static void passkey_numpad_btn_clicked(lv_event_t *e) {
+    passkey_input_ctx_t *ctx = lv_event_get_user_data(e);
+    lv_obj_t *btn = lv_event_get_target(e);
+    lv_obj_t *label = lv_obj_get_child(btn, 0);
+    const char *txt = lv_label_get_text(label);
+
+    if (strcmp(txt, LV_SYMBOL_BACKSPACE) == 0) {
+        if (ctx->input_len > 0) {
+            ctx->input_len--;
+            ctx->input[ctx->input_len] = '\0';
+        }
+    } else if (strcmp(txt, "OK") == 0) {
+        if (ctx->input_len >= 4 && ctx->input_len <= 6) {
+            uint32_t passkey = (uint32_t)atoi(ctx->input);
+            hid_device_passkey_input(passkey);
+            lv_msgbox_close(ctx->msgbox);
+            lv_free(ctx);
+            return;
+        }
+    } else {
+        if (ctx->input_len < 6) {
+            ctx->input[ctx->input_len] = txt[0];
+            ctx->input_len++;
+            ctx->input[ctx->input_len] = '\0';
+        }
+    }
+    passkey_input_update_label(ctx);
+}
+
+static void passkey_input_cancel_clicked(lv_event_t *e) {
+    passkey_input_ctx_t *ctx = lv_event_get_user_data(e);
+    lv_msgbox_close(ctx->msgbox);
+    lv_free(ctx);
+}
+
+static void show_passkey_input(passkey_info_t *info) {
+    passkey_input_ctx_t *ctx = lv_malloc(sizeof(passkey_input_ctx_t));
+    ctx->screen = info->screen;
+    ctx->input_len = 0;
+    ctx->input[0] = '\0';
+
+    lv_obj_t *msgbox = lv_msgbox_create(info->screen->screen);
+    ctx->msgbox = msgbox;
+    lv_msgbox_add_title(msgbox, "Enter Passkey");
+
+    lv_obj_t *content = lv_msgbox_get_content(msgbox);
+
+    lv_obj_t *input_label = lv_label_create(content);
+    lv_label_set_text(input_label, "______");
+    lv_obj_set_style_text_font(input_label, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_letter_space(input_label, 8, 0);
+    lv_obj_set_width(input_label, LV_PCT(100));
+    lv_obj_set_style_text_align(input_label, LV_TEXT_ALIGN_CENTER, 0);
+    ctx->input_label = input_label;
+
+    lv_obj_t *numpad = lv_obj_create(content);
+    lv_obj_set_size(numpad, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(numpad, 5, 0);
+    lv_obj_set_layout(numpad, LV_LAYOUT_GRID);
+    static const int32_t col_dsc[] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
+    static const int32_t row_dsc[] = {LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
+    lv_obj_set_grid_dsc_array(numpad, col_dsc, row_dsc);
+
+    const char *btn_labels[] = {
+        "1", "2", "3",
+        "4", "5", "6",
+        "7", "8", "9",
+        LV_SYMBOL_BACKSPACE, "0", "OK"
+    };
+
+    for (int i = 0; i < 12; i++) {
+        lv_obj_t *btn = lv_btn_create(numpad);
+        lv_obj_set_grid_cell(btn, LV_GRID_ALIGN_STRETCH, i % 3, 1, LV_GRID_ALIGN_CENTER, i / 3, 1);
+        lv_obj_add_event_cb(btn, passkey_numpad_btn_clicked, LV_EVENT_CLICKED, ctx);
+
+        lv_obj_t *label = lv_label_create(btn);
+        lv_label_set_text(label, btn_labels[i]);
+        lv_obj_center(label);
+    }
+
+    lv_obj_t *cancel_btn = lv_msgbox_add_footer_button(msgbox, "Cancel");
+    lv_obj_add_event_cb(cancel_btn, passkey_input_cancel_clicked, LV_EVENT_CLICKED, ctx);
+
+    lv_obj_center(msgbox);
+}
+
 static void show_passkey_info_async(void *user_data) {
     passkey_info_t *info = user_data;
     info->show(info);
@@ -154,6 +256,12 @@ static void hid_device_notify_callback(hid_device_notify_t *notify, void *user_d
         info->screen = user_data;
         info->passkey = notify->passkey.passkey;
         info->show = show_passkey_display;
+        lv_async_call(show_passkey_info_async, (void*)info);
+    } else if (notify->type == HID_DEVICE_NOTIFY_PASSKEY_INPUT) {
+        passkey_info_t *info = lv_malloc(sizeof(passkey_info_t));
+        info->screen = user_data;
+        info->passkey = 0;
+        info->show = show_passkey_input;
         lv_async_call(show_passkey_info_async, (void*)info);
     }
 }
