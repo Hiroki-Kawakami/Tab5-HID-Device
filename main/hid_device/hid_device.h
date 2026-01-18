@@ -68,7 +68,7 @@ void hid_device_start_pairing(void);
 void hid_device_stop_pairing(void);
 void hid_device_passkey_input(uint32_t passkey);
 void hid_device_passkey_confirm(bool accept);
-void hid_device_send_report(size_t report_id, uint8_t *report, size_t length);
+void hid_device_send_report(uint8_t report_id, uint8_t *report, uint16_t size, bool auto_free);
 
 // MARK: Profiles
 extern const hid_device_profile_t hid_device_profile_keyboard;

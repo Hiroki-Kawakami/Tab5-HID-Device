@@ -5,13 +5,15 @@
 
 #include "layout.h"
 #include "hid_device.h"
+#include "hid_device_key.h"
+#include "hid_device_keyboard.h"
 #include "esp_log.h"
 
 #define ROW1_HEIGHT 30
 
 struct key {
     const char *label;
-    uint8_t code;
+    uint32_t value;
     int16_t width;
 };
 struct row {
@@ -35,80 +37,124 @@ static struct keyboard keyboard = SIZED_ARRAY((struct row[]){
     {
         .height = 30,
         .keys = SIZED_ARRAY((struct key[]){
-            { "Esc", 0x29 },
-            { "F1", 0x3A }, { "F2", 0x3B }, { "F3", 0x3C }, { "F4", 0x3D },
-            { "F5", 0x3E }, { "F6", 0x3F }, { "F7", 0x40 }, { "F8", 0x41 },
-            { "F9", 0x42 }, { "F10", 0x43 }, { "F11", 0x44 }, { "F12", 0x45 },
-            { "Del", 0x4C },
+            { "Esc", HID_DEVICE_KEY_ESCAPE },
+            { "F1", HID_DEVICE_KEY_F1 },
+            { "F2", HID_DEVICE_KEY_F2 },
+            { "F3", HID_DEVICE_KEY_F3 },
+            { "F4", HID_DEVICE_KEY_F4 },
+            { "F5", HID_DEVICE_KEY_F5 },
+            { "F6", HID_DEVICE_KEY_F6 },
+            { "F7", HID_DEVICE_KEY_F7 },
+            { "F8", HID_DEVICE_KEY_F8 },
+            { "F9", HID_DEVICE_KEY_F9 },
+            { "F10", HID_DEVICE_KEY_F10 },
+            { "F11", HID_DEVICE_KEY_F11 },
+            { "F12", HID_DEVICE_KEY_F12 },
+            { "Del", HID_DEVICE_KEY_DELETE },
         }),
     },
     // Row 2: Number row (Backをflexで埋める)
     {
         .height = 40,
         .keys = SIZED_ARRAY((struct key[]){
-            { "`", 0x35, K },
-            { "1", 0x1E, K }, { "2", 0x1F, K }, { "3", 0x20, K }, { "4", 0x21, K }, { "5", 0x22, K },
-            { "6", 0x23, K }, { "7", 0x24, K }, { "8", 0x25, K }, { "9", 0x26, K }, { "0", 0x27, K },
-            { "-", 0x2D, K }, { "=", 0x2E, K },
-            { "Back", 0x2A },  // flex
+            { "`", HID_DEVICE_KEY_GRAVE, K },
+            { "1", HID_DEVICE_KEY_1, K },
+            { "2", HID_DEVICE_KEY_2, K },
+            { "3", HID_DEVICE_KEY_3, K },
+            { "4", HID_DEVICE_KEY_4, K },
+            { "5", HID_DEVICE_KEY_5, K },
+            { "6", HID_DEVICE_KEY_6, K },
+            { "7", HID_DEVICE_KEY_7, K },
+            { "8", HID_DEVICE_KEY_8, K },
+            { "9", HID_DEVICE_KEY_9, K },
+            { "0", HID_DEVICE_KEY_0, K },
+            { "-", HID_DEVICE_KEY_MINUS, K },
+            { "=", HID_DEVICE_KEY_EQUAL, K },
+            { "Back", HID_DEVICE_KEY_BACKSPACE },  // flex
         }),
     },
     // Row 3: QWERTY row (\\をflexで埋める)
     {
         .height = 40,
         .keys = SIZED_ARRAY((struct key[]){
-            { "Tab", 0x2B, T },
-            { "Q", 0x14, K }, { "W", 0x1A, K }, { "E", 0x08, K }, { "R", 0x15, K }, { "T", 0x17, K },
-            { "Y", 0x1C, K }, { "U", 0x18, K }, { "I", 0x0C, K }, { "O", 0x12, K }, { "P", 0x13, K },
-            { "[", 0x2F, K }, { "]", 0x30, K },
-            { "\\", 0x31 },  // flex
+            { "Tab", HID_DEVICE_KEY_TAB, T },
+            { "Q", HID_DEVICE_KEY_Q, K },
+            { "W", HID_DEVICE_KEY_W, K },
+            { "E", HID_DEVICE_KEY_E, K },
+            { "R", HID_DEVICE_KEY_R, K },
+            { "T", HID_DEVICE_KEY_T, K },
+            { "Y", HID_DEVICE_KEY_Y, K },
+            { "U", HID_DEVICE_KEY_U, K },
+            { "I", HID_DEVICE_KEY_I, K },
+            { "O", HID_DEVICE_KEY_O, K },
+            { "P", HID_DEVICE_KEY_P, K },
+            { "[", HID_DEVICE_KEY_LEFT_BRACKET, K },
+            { "]", HID_DEVICE_KEY_RIGHT_BRACKET, K },
+            { "\\", HID_DEVICE_KEY_BACKSLASH },  // flex
         }),
     },
     // Row 4: ASDF row (Enterをflexで埋める)
     {
         .height = 40,
         .keys = SIZED_ARRAY((struct key[]){
-            { "Caps", 0x39, C },
-            { "A", 0x04, K }, { "S", 0x16, K }, { "D", 0x07, K }, { "F", 0x09, K }, { "G", 0x0A, K },
-            { "H", 0x0B, K }, { "J", 0x0D, K }, { "K", 0x0E, K }, { "L", 0x0F, K }, { ";", 0x33, K },
-            { "'", 0x34, K },
-            { "Enter", 0x28 },  // flex
+            { "Caps", HID_DEVICE_KEY_CAPS_LOCK, C },
+            { "A", HID_DEVICE_KEY_A, K },
+            { "S", HID_DEVICE_KEY_S, K },
+            { "D", HID_DEVICE_KEY_D, K },
+            { "F", HID_DEVICE_KEY_F, K },
+            { "G", HID_DEVICE_KEY_G, K },
+            { "H", HID_DEVICE_KEY_H, K },
+            { "J", HID_DEVICE_KEY_J, K },
+            { "K", HID_DEVICE_KEY_K, K },
+            { "L", HID_DEVICE_KEY_L, K },
+            { ";", HID_DEVICE_KEY_SEMICOLON, K },
+            { "'", HID_DEVICE_KEY_QUOTE, K },
+            { "Enter", HID_DEVICE_KEY_ENTER },  // flex
         }),
     },
     // Row 5: ZXCV row (右Shiftをflexで埋める)
     {
         .height = 40,
         .keys = SIZED_ARRAY((struct key[]){
-            { "Shift", 0xE1, S },
-            { "Z", 0x1D, K }, { "X", 0x1B, K }, { "C", 0x06, K }, { "V", 0x19, K }, { "B", 0x05, K },
-            { "N", 0x11, K }, { "M", 0x10, K }, { ",", 0x36, K }, { ".", 0x37, K }, { "/", 0x38, K },
-            { "Shift", 0xE5 },  // flex
+            { "Shift", HID_DEVICE_KEY_LEFT_SHIFT, S },
+            { "Z", HID_DEVICE_KEY_Z, K },
+            { "X", HID_DEVICE_KEY_X, K },
+            { "C", HID_DEVICE_KEY_C, K },
+            { "V", HID_DEVICE_KEY_V, K },
+            { "B", HID_DEVICE_KEY_B, K },
+            { "N", HID_DEVICE_KEY_N, K },
+            { "M", HID_DEVICE_KEY_M, K },
+            { ",", HID_DEVICE_KEY_COMMA, K },
+            { ".", HID_DEVICE_KEY_DOT, K },
+            { "/", HID_DEVICE_KEY_SLASH, K },
+            { "Shift", HID_DEVICE_KEY_RIGHT_SHIFT },  // flex
         }),
     },
     // Row 6: Bottom row (Spaceをflexで埋める)
     {
         .height = 40,
         .keys = SIZED_ARRAY((struct key[]){
-            { "Ctrl", 0xE0, C },
-            { "Win", 0xE3, K },
-            { "Alt", 0xE2, K },
-            { " ", 0x2C },  // flex
-            { "Alt", 0xE6, K },
-            { "Fn", 0x00, K },
-            { "Ctrl", 0xE4, C },
+            { "Ctrl", HID_DEVICE_KEY_LEFT_CTRL, C },
+            { "Win", HID_DEVICE_KEY_LEFT_GUI, K },
+            { "Alt", HID_DEVICE_KEY_LEFT_ALT, K },
+            { " ", HID_DEVICE_KEY_SPACE },  // flex
+            { "Alt", HID_DEVICE_KEY_RIGHT_ALT, K },
+            { "Win", HID_DEVICE_KEY_RIGHT_GUI, K },
+            { "Fn", HID_DEVICE_KEY_NONE, K },
+            { "Ctrl", HID_DEVICE_KEY_RIGHT_CTRL, C },
         }),
     },
 });
 
 static void button_event(lv_event_t* event) {
     const struct key *key = lv_event_get_user_data(event);
-    if (!key->code) return;
+    if (!key->value) return;
 
     lv_event_code_t code = lv_event_get_code(event);
     if (code == LV_EVENT_PRESSED) {
-        // hid_device_key_press(key->code);
+        hid_device_keyboard_press_key(key->value);
     } else if (code == LV_EVENT_RELEASED) {
-        // hid_device_key_release(key->code);
+        hid_device_keyboard_release_key(key->value);
     } else if (code == LV_EVENT_PRESSING) {
         // ボタン範囲外に出たらリリース
         lv_obj_t *btn = lv_event_get_target(event);
@@ -116,7 +162,7 @@ static void button_event(lv_event_t* event) {
         lv_point_t point;
         lv_indev_get_point(indev, &point);
         if (!lv_obj_hit_test(btn, &point)) {
-            // hid_device_key_release(key->code);
+            hid_device_keyboard_release_key(key->value);
             lv_obj_remove_state(btn, LV_STATE_PRESSED);
         }
     }

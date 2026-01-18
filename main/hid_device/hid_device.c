@@ -4,6 +4,8 @@
  */
 
 #include "hid_device.h"
+#include "hid_device_keyboard.h"
+#include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
 #include "esp_random.h"
@@ -32,11 +34,13 @@ typedef struct {
         HID_DEVICE_MSG_CANCEL,
         HID_DEVICE_MSG_CONNECT,
         HID_DEVICE_MSG_DISCONNECT,
+        HID_DEVICE_MSG_SEND_REPORT,
     } type;
     union {
         struct {
             uint8_t report_id;
-            size_t size;
+            bool auto_free;
+            uint16_t size;
             uint8_t *data;
         } report;
         struct {
@@ -287,13 +291,14 @@ static hid_device_state_t state_pairing_event_handler(hid_device_msg_t *msg) {
     return HID_DEVICE_STATE_KEEP;
 }
 static hid_device_state_t state_active_event_handler(hid_device_msg_t *msg) {
-    if (msg->type == HID_DEVICE_MSG_START) {
+    if (msg->type == HID_DEVICE_MSG_DISCONNECT) {
         ble_addr_t addr;
         if (peer_get_bonded_addr(&addr)) {
             start_advertise(&addr);
             return HID_DEVICE_STATE_WAIT_CONNECT;
         } else {
-            return HID_DEVICE_STATE_INACTIVE;
+            start_pairing();
+            return HID_DEVICE_STATE_PAIRING;
         }
     }
     return HID_DEVICE_STATE_KEEP;
@@ -304,6 +309,16 @@ static hid_device_state_t state_inactive_event_handler(hid_device_msg_t *msg) {
         return HID_DEVICE_STATE_PAIRING;
     }
     return HID_DEVICE_STATE_KEEP;
+}
+static void state_all_event_handler(hid_device_msg_t *msg) {
+    if (msg->type == HID_DEVICE_MSG_SEND_REPORT) {
+        if (hid_device_is_connected()) {
+            esp_hidd_dev_input_set(hid_dev, 0, msg->report.report_id, msg->report.data, msg->report.size);
+        }
+        if (msg->report.auto_free) {
+            free(msg->report.data);
+        }
+    }
 }
 
 static void hid_device_task(void *param) {
@@ -323,6 +338,7 @@ static void hid_device_task(void *param) {
             [HID_DEVICE_STATE_INACTIVE    ] = state_inactive_event_handler,
         };
         hid_device_state_t next_state = hdlr[current_state](&msg);
+        state_all_event_handler(&msg);
         if (next_state != HID_DEVICE_STATE_KEEP && current_state != next_state) {
             hid_device_state_t prev_state = current_state;
             current_state = next_state;
@@ -373,7 +389,7 @@ static void hidd_event_callback(void *handler_args, esp_event_base_t base, int32
     case ESP_HIDD_DISCONNECT_EVENT:
         ESP_LOGI(TAG, "HID device disconnected, reason: %d", param->disconnect.reason);
         hid_device_push_event_msg(&(hid_device_msg_t){
-            .type = HID_DEVICE_MSG_CONNECT,
+            .type = HID_DEVICE_MSG_DISCONNECT,
             .disconnect.reason = param->disconnect.reason,
         });
         break;
@@ -450,7 +466,8 @@ esp_err_t hid_device_init(const hid_device_profile_t *profile) {
     // Start NimBLE host task
     nimble_port_freertos_init(ble_host_task);
 
-    // Start HID message processing task
+    // Start HID Device Control
+    hid_device_keyboard_init();
     xTaskCreate(hid_device_task, "hid_device", 8192, NULL, 5, NULL);
 
     ESP_LOGI(TAG, "HID device initialized");
@@ -512,4 +529,16 @@ void hid_device_passkey_confirm(bool accept) {
     if (rc != 0) {
         ESP_LOGE(TAG, "Failed to inject numcmp, rc=%d", rc);
     }
+}
+
+void hid_device_send_report(uint8_t report_id, uint8_t *report, uint16_t size, bool auto_free) {
+    hid_device_push_event_msg(&(hid_device_msg_t){
+        .type = HID_DEVICE_MSG_SEND_REPORT,
+        .report = {
+            .report_id = report_id,
+            .auto_free = auto_free,
+            .size = size,
+            .data = report,
+        },
+    });
 }
