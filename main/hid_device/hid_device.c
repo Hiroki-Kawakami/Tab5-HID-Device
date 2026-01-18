@@ -5,6 +5,7 @@
 
 #include "hid_device.h"
 #include "hid_device_keyboard.h"
+#include "hid_device_mouse.h"
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
@@ -468,6 +469,7 @@ esp_err_t hid_device_init(const hid_device_profile_t *profile) {
 
     // Start HID Device Control
     hid_device_keyboard_init();
+    hid_device_mouse_init();
     xTaskCreate(hid_device_task, "hid_device", 8192, NULL, 5, NULL);
 
     ESP_LOGI(TAG, "HID device initialized");

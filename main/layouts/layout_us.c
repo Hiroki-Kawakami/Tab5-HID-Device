@@ -5,6 +5,7 @@
 
 #include "core/lv_obj.h"
 #include "core/lv_obj_pos.h"
+#include "hid_device_mouse.h"
 #include "layout.h"
 #include "hid_device.h"
 #include "hid_device_key.h"
@@ -170,14 +171,12 @@ static void trackpad_event(lv_event_t *event) {
         trackpad_last_point = point;
         if (dx != 0 || dy != 0) {
             trackpad_moved = true;
-            // TODO: send mouse movement
-            printf("trackpad: dx=%d, dy=%d\n", dx, dy);
+            hid_device_mouse_move(dx, dy);
         }
     } else if (code == LV_EVENT_RELEASED) {
         uint32_t elapsed = lv_tick_elaps(trackpad_press_time);
         if (!trackpad_moved && elapsed < TRACKPAD_CLICK_TIMEOUT_MS) {
-            // TODO: handle click
-            printf("trackpad: click\n");
+            hid_device_mouse_click(HID_DEVICE_MOUSE_BUTTON_LEFT);
         }
     }
 }
@@ -209,7 +208,7 @@ static void build(lv_obj_t *screen) {
     int width = lv_obj_get_width(screen), height = lv_obj_get_height(screen);
 
     lv_obj_t *prev_row_obj = NULL;
-    int keyboard_height = 0;
+    int keyboard_height = 1;
     for (int r = 0; r < keyboard.size; r++) {
         struct row *row = &keyboard.rows[r];
         lv_obj_t *row_obj = lv_obj_create(screen);
@@ -246,7 +245,7 @@ static void build(lv_obj_t *screen) {
         }
 
         prev_row_obj = row_obj;
-        keyboard_height += row->height;
+        keyboard_height += row->height - 1;
     }
 
     lv_obj_t *trackpad = lv_obj_create(screen);
