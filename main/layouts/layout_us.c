@@ -3,8 +3,6 @@
  * Copyright (c) 2026 Hiroki Kawakami
  */
 
-#include "core/lv_obj.h"
-#include "core/lv_obj_pos.h"
 #include "hid_device_mouse.h"
 #include "layout.h"
 #include "hid_device.h"
@@ -181,6 +179,16 @@ static void trackpad_event(lv_event_t *event) {
     }
 }
 
+static void mouse_button_event(lv_event_t *event) {
+    hid_device_mouse_button_t button = (hid_device_mouse_button_t)(intptr_t)lv_event_get_user_data(event);
+    lv_event_code_t code = lv_event_get_code(event);
+    if (code == LV_EVENT_PRESSED) {
+        hid_device_mouse_press_button(button);
+    } else if (code == LV_EVENT_RELEASED) {
+        hid_device_mouse_release_button(button);
+    }
+}
+
 static void button_event(lv_event_t* event) {
     const struct key *key = lv_event_get_user_data(event);
     if (!key->value) return;
@@ -257,6 +265,34 @@ static void build(lv_obj_t *screen) {
     lv_obj_add_event_cb(trackpad, trackpad_event, LV_EVENT_PRESSED, NULL);
     lv_obj_add_event_cb(trackpad, trackpad_event, LV_EVENT_PRESSING, NULL);
     lv_obj_add_event_cb(trackpad, trackpad_event, LV_EVENT_RELEASED, NULL);
+
+    lv_obj_t *mouse_buttons = lv_obj_create(screen);
+    lv_obj_remove_style_all(mouse_buttons);
+    lv_obj_set_size(mouse_buttons, width / 10 * 3 - 20, 50);
+    lv_obj_align(mouse_buttons, LV_ALIGN_BOTTOM_LEFT, 10, -10);
+    lv_obj_set_style_border_width(mouse_buttons, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(mouse_buttons, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+
+    lv_obj_t *mouse_left_btn = lv_button_create(mouse_buttons);
+    lv_obj_remove_style_all(mouse_left_btn);
+    lv_obj_set_size(mouse_left_btn, lv_pct(50), lv_pct(100));
+    lv_obj_align(mouse_left_btn, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_add_event_cb(mouse_left_btn, mouse_button_event, LV_EVENT_PRESSED, (void *)HID_DEVICE_MOUSE_BUTTON_LEFT);
+    lv_obj_add_event_cb(mouse_left_btn, mouse_button_event, LV_EVENT_RELEASED, (void *)HID_DEVICE_MOUSE_BUTTON_LEFT);
+
+    lv_obj_t *mouse_right_btn = lv_button_create(mouse_buttons);
+    lv_obj_remove_style_all(mouse_right_btn);
+    lv_obj_set_size(mouse_right_btn, lv_pct(50), lv_pct(100));
+    lv_obj_align(mouse_right_btn, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_add_event_cb(mouse_right_btn, mouse_button_event, LV_EVENT_PRESSED, (void *)HID_DEVICE_MOUSE_BUTTON_RIGHT);
+    lv_obj_add_event_cb(mouse_right_btn, mouse_button_event, LV_EVENT_RELEASED, (void *)HID_DEVICE_MOUSE_BUTTON_RIGHT);
+
+    lv_obj_t *mouse_separator = lv_obj_create(mouse_buttons);
+    lv_obj_remove_style_all(mouse_separator);
+    lv_obj_set_size(mouse_separator, 1, 40);
+    lv_obj_center(mouse_separator);
+    lv_obj_set_style_bg_color(mouse_separator, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(mouse_separator, LV_OPA_COVER, LV_PART_MAIN);
 }
 
 static const layout_config_t layout_config = {

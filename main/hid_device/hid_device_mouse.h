@@ -16,3 +16,5 @@ typedef enum {
 void hid_device_mouse_init(void);
 void hid_device_mouse_move(int8_t dx, int8_t dy);
 void hid_device_mouse_click(hid_device_mouse_button_t button);
+void hid_device_mouse_press_button(hid_device_mouse_button_t button);
+void hid_device_mouse_release_button(hid_device_mouse_button_t button);
