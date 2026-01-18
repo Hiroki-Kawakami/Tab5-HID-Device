@@ -24,7 +24,14 @@ static esp_hidd_dev_t *hid_dev = NULL;
 
 // MARK: Event Message
 typedef struct {
-    hid_device_event_t event;
+    enum {
+        HID_DEVICE_MSG_START,
+        HID_DEVICE_MSG_START_PAIRING,
+        HID_DEVICE_MSG_STOP_PAIRING,
+        HID_DEVICE_MSG_CANCEL,
+        HID_DEVICE_MSG_CONNECT,
+        HID_DEVICE_MSG_DISCONNECT,
+    } type;
     union {
         struct {
             uint8_t report_id;
@@ -42,6 +49,15 @@ static QueueHandle_t hid_event_queue = NULL;
 
 void hid_device_push_event_msg(hid_device_msg_t *msg) {
     xQueueSend(hid_event_queue, msg, portMAX_DELAY);
+}
+
+// MARK: Notify
+#define NOTIFY_CALLBACK_NUM_MAX 8
+static hid_device_notify_callback_t notify_callbacks[NOTIFY_CALLBACK_NUM_MAX];
+static void hid_device_notify(hid_device_notify_t *notify) {
+    for (int i = 0; i < NOTIFY_CALLBACK_NUM_MAX; i++) {
+        if (notify_callbacks[i]) notify_callbacks[i](notify);
+    }
 }
 
 // MARK: Profile
@@ -186,6 +202,10 @@ static void start_pairing(void) { // Undirected Connectable
     }
     ESP_LOGI(TAG, "Pairing started");
 }
+static void stop_pairing(void) {
+    ble_gap_adv_stop();
+    ESP_LOGI(TAG, "Pairing stopped");
+}
 
 static void start_advertise(ble_addr_t *addr) { // Directed Connectable
     struct ble_gap_adv_params adv_params = {0};
@@ -200,13 +220,17 @@ static void start_advertise(ble_addr_t *addr) { // Directed Connectable
     }
     ESP_LOGI(TAG, "Advertising started");
 }
+static void stop_advertise(void) {
+    ble_gap_adv_stop();
+    ESP_LOGI(TAG, "Advertising stopped");
+}
 
 // MARK: HID Device State
 #define HID_DEVICE_STATE_KEEP (HID_DEVICE_STATE_MAX)
 static hid_device_state_t current_state = HID_DEVICE_STATE_BEGIN;
 
 static hid_device_state_t state_begin_event_handler(hid_device_msg_t *msg) {
-    if (msg->event == HID_DEVICE_EVENT_START) {
+    if (msg->type == HID_DEVICE_MSG_START) {
         ble_addr_t addr;
         if (peer_get_bonded_addr(&addr)) {
             start_advertise(&addr);
@@ -219,19 +243,25 @@ static hid_device_state_t state_begin_event_handler(hid_device_msg_t *msg) {
     return HID_DEVICE_STATE_KEEP;
 }
 static hid_device_state_t state_wait_connect_event_handler(hid_device_msg_t *msg) {
-    if (msg->event == HID_DEVICE_EVENT_CONNECT) {
+    if (msg->type == HID_DEVICE_MSG_CONNECT) {
         return HID_DEVICE_STATE_ACTIVE;
+    } else if (msg->type == HID_DEVICE_MSG_START_PAIRING) {
+        stop_advertise();
+        start_pairing();
+        return HID_DEVICE_STATE_PAIRING;
     }
     return HID_DEVICE_STATE_KEEP;
 }
 static hid_device_state_t state_pairing_event_handler(hid_device_msg_t *msg) {
-    if (msg->event == HID_DEVICE_EVENT_CONNECT) {
+    if (msg->type == HID_DEVICE_MSG_CONNECT) {
         return HID_DEVICE_STATE_ACTIVE;
+    } if (msg->type == HID_DEVICE_MSG_STOP_PAIRING) {
+        stop_pairing();
     }
     return HID_DEVICE_STATE_KEEP;
 }
 static hid_device_state_t state_active_event_handler(hid_device_msg_t *msg) {
-    if (msg->event == HID_DEVICE_EVENT_START) {
+    if (msg->type == HID_DEVICE_MSG_START) {
         ble_addr_t addr;
         if (peer_get_bonded_addr(&addr)) {
             start_advertise(&addr);
@@ -243,7 +273,7 @@ static hid_device_state_t state_active_event_handler(hid_device_msg_t *msg) {
     return HID_DEVICE_STATE_KEEP;
 }
 static hid_device_state_t state_inactive_event_handler(hid_device_msg_t *msg) {
-    if (msg->event == HID_DEVICE_EVENT_PAIR) {
+    if (msg->type == HID_DEVICE_MSG_START_PAIRING) {
         start_pairing();
         return HID_DEVICE_STATE_PAIRING;
     }
@@ -256,7 +286,7 @@ static void hid_device_task(void *param) {
         if (!xQueueReceive(hid_event_queue, &msg, portMAX_DELAY)) {
             continue;
         }
-        ESP_LOGI(TAG, "Recv Msg: state=%d, event=%d", current_state, msg.event);
+        ESP_LOGI(TAG, "Recv Msg: event=%d, state=%d", msg.type, current_state);
 
         typedef hid_device_state_t (*event_handler_t)(hid_device_msg_t *msg);
         const event_handler_t hdlr[] = {
@@ -267,12 +297,17 @@ static void hid_device_task(void *param) {
             [HID_DEVICE_STATE_INACTIVE    ] = state_inactive_event_handler,
         };
         hid_device_state_t next_state = hdlr[current_state](&msg);
-        if (next_state != HID_DEVICE_STATE_KEEP) {
+        if (next_state != HID_DEVICE_STATE_KEEP && current_state != next_state) {
+            hid_device_state_t prev_state = current_state;
             current_state = next_state;
+            hid_device_notify(&(hid_device_notify_t){
+                .type = HID_DEVICE_NOTIFY_STATE_CHANGED,
+                .state.prev = prev_state,
+                .state.current = current_state,
+            });
         }
     }
 }
-
 
 // MARK: ESP_HID
 static void hidd_event_callback(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
@@ -282,12 +317,12 @@ static void hidd_event_callback(void *handler_args, esp_event_base_t base, int32
     switch (event) {
     case ESP_HIDD_START_EVENT:
         ESP_LOGI(TAG, "HID device started");
-        hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_EVENT_START });
+        hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_MSG_START });
         break;
 
     case ESP_HIDD_CONNECT_EVENT:
         ESP_LOGI(TAG, "HID device connected");
-        hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_EVENT_CONNECT });
+        hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_MSG_CONNECT });
         break;
 
     case ESP_HIDD_PROTOCOL_MODE_EVENT:
@@ -313,7 +348,7 @@ static void hidd_event_callback(void *handler_args, esp_event_base_t base, int32
     case ESP_HIDD_DISCONNECT_EVENT:
         ESP_LOGI(TAG, "HID device disconnected, reason: %d", param->disconnect.reason);
         hid_device_push_event_msg(&(hid_device_msg_t){
-            .event = HID_DEVICE_EVENT_CONNECT,
+            .type = HID_DEVICE_MSG_CONNECT,
             .disconnect.reason = param->disconnect.reason,
         });
         break;
@@ -375,6 +410,11 @@ esp_err_t hid_device_init(const hid_device_profile_t *profile) {
 
     // Initialize HID device
     current_profile = profile;
+    int rc = ble_svc_gap_device_name_set(profile_get_device_name());
+    if (rc != 0) {
+        ESP_LOGE(TAG, "Failed to set device name: %d", rc);
+        return ESP_FAIL;
+    }
     esp_hid_device_config_t *hid_config = profile_get_device_config();
     ret = esp_hidd_dev_init(hid_config, ESP_HID_TRANSPORT_BLE, hidd_event_callback, &hid_dev);
     if (ret != ESP_OK) {
@@ -390,4 +430,33 @@ esp_err_t hid_device_init(const hid_device_profile_t *profile) {
 
     ESP_LOGI(TAG, "HID device initialized");
     return ESP_OK;
+}
+void hid_device_add_notify_callback(hid_device_notify_callback_t callback) {
+    for (int i = 0; i < NOTIFY_CALLBACK_NUM_MAX; i++) {
+        if (notify_callbacks[i] == NULL) {
+            notify_callbacks[i] = callback;
+            return;
+        }
+    }
+    ESP_LOGE(TAG, "Failed to add notify callback, max reached");
+}
+void hid_device_remove_notify_callback(hid_device_notify_callback_t callback) {
+    for (int i = 0; i < NOTIFY_CALLBACK_NUM_MAX; i++) {
+        if (notify_callbacks[i] == callback) {
+            notify_callbacks[i] = NULL;
+            return;
+        }
+    }
+}
+hid_device_state_t hid_device_state(void) {
+    return current_state;
+}
+bool hid_device_is_connected(void) {
+    return current_state == HID_DEVICE_STATE_ACTIVE;
+}
+void hid_device_start_pairing() {
+    hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_MSG_START_PAIRING });
+}
+void hid_device_stop_pairing() {
+    hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_MSG_STOP_PAIRING });
 }

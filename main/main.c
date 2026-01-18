@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "bsp_tab5.h"
+#include "display/lv_display.h"
 #include "driver/ppa.h"
 #include "esp_log.h"
 #include "esp_err.h"
@@ -9,6 +10,9 @@
 #include "esp_lvgl_port.h"
 #include "hid_device.h"
 #include "layouts/layout.h"
+#include "misc/lv_async.h"
+#include "screens/connect_screen.h"
+#include "stdlib/lv_mem.h"
 
 static const char *TAG = "main";
 
@@ -93,8 +97,54 @@ static void gui_input_read(lv_indev_t *indev, lv_indev_data_t *data) {
     data->state = LV_INDEV_STATE_RELEASED;
 }
 
-static void build_layout(void *user_data) {
-    _layout_head->config->build(lv_screen_active());
+// Screen Transition
+static void update_screen_type(hid_device_state_t current, hid_device_state_t prev) {
+    ESP_LOGI(TAG, "update_screen_type: %d->%d", prev, current);
+    if (prev == HID_DEVICE_STATE_BEGIN) {
+        if (current == HID_DEVICE_STATE_PAIRING) {
+            connect_screen_open(lv_screen_active(), &(connect_screen_config_t){
+                .mode = CONNECT_SCREEN_MODE_PAIRING,
+            });
+            return;
+        } else if (current == HID_DEVICE_STATE_WAIT_CONNECT) {
+            connect_screen_open(lv_screen_active(), &(connect_screen_config_t){
+                .mode = CONNECT_SCREEN_MODE_CONNECT,
+                .device_name = "Device",
+            });
+            return;
+        }
+    }
+    if (current == HID_DEVICE_STATE_PAIRING) {
+        lv_obj_t *screen = lv_obj_create(NULL);
+        connect_screen_open(screen, &(connect_screen_config_t){
+            .mode = CONNECT_SCREEN_MODE_PAIRING,
+            .cancellable = true,
+        });
+        lv_screen_load(screen);
+    } else if (current == HID_DEVICE_STATE_WAIT_CONNECT) {
+        lv_obj_t *screen = lv_obj_create(NULL);
+        connect_screen_open(screen, &(connect_screen_config_t){
+            .mode = CONNECT_SCREEN_MODE_CONNECT,
+            .device_name = "Device",
+        });
+        lv_screen_load(screen);
+    } else if (current == HID_DEVICE_STATE_ACTIVE) {
+        lv_obj_t *screen = lv_obj_create(NULL);
+        _layout_head->config->build(screen);
+        lv_screen_load(screen);
+    }
+}
+static void update_screen_type_async(void *user_data) {
+    hid_device_notify_t *notify = user_data;
+    update_screen_type(notify->state.current, notify->state.prev);
+    lv_free(notify);
+}
+static void hid_device_notify_callback(hid_device_notify_t *notify) {
+    if (notify->type == HID_DEVICE_NOTIFY_STATE_CHANGED) {
+        hid_device_notify_t *copy = lv_malloc(sizeof(hid_device_notify_t));
+        *copy = *notify;
+        lv_async_call(update_screen_type_async, copy);
+    }
 }
 
 void app_main() {
@@ -102,9 +152,6 @@ void app_main() {
         .display.fb_num = gui_fb_num,
         .bluetooth.enable = true,
     });
-
-    // Initialize HID keyboard
-    ESP_ERROR_CHECK(hid_device_init(&hid_device_profile_keyboard));
 
     lvgl_setup();
 
@@ -125,5 +172,7 @@ void app_main() {
         lv_indev_set_read_cb(indev, gui_input_read);
     }
 
-    lv_async_call(build_layout, NULL);
+    // Initialize HID keyboard
+    hid_device_add_notify_callback(hid_device_notify_callback);
+    ESP_ERROR_CHECK(hid_device_init(&hid_device_profile_keyboard));
 }

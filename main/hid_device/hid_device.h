@@ -40,17 +40,26 @@ typedef enum {
     HID_DEVICE_STATE_MAX,
 } hid_device_state_t;
 
-typedef enum {
-    HID_DEVICE_EVENT_START,
-    HID_DEVICE_EVENT_PAIR,
-    HID_DEVICE_EVENT_CONNECT,
-    HID_DEVICE_EVENT_DISCONNECT,
-} hid_device_event_t;
+typedef struct {
+    enum {
+        HID_DEVICE_NOTIFY_STATE_CHANGED,
+    } type;
+    union {
+        struct {
+            hid_device_state_t prev;
+            hid_device_state_t current;
+        } state;
+    };
+} hid_device_notify_t;
+typedef void (*hid_device_notify_callback_t)(hid_device_notify_t *notify);
 
 esp_err_t hid_device_init(const hid_device_profile_t *profile);
+void hid_device_add_notify_callback(hid_device_notify_callback_t callback);
+void hid_device_remove_notify_callback(hid_device_notify_callback_t callback);
 hid_device_state_t hid_device_state(void);
 bool hid_device_is_connected(void);
-void hid_device_start_pairing();
+void hid_device_start_pairing(void);
+void hid_device_stop_pairing(void);
 void hid_device_send_report(size_t report_id, uint8_t *report, size_t length);
 
 // MARK: Profiles
