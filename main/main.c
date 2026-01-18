@@ -93,46 +93,7 @@ static void gui_input_read(lv_indev_t *indev, lv_indev_data_t *data) {
     data->state = LV_INDEV_STATE_RELEASED;
 }
 
-/*
- * MARK: Theme
- */
-static struct {
-    lv_style_t screen;
-    lv_style_t label;
-    lv_style_t button;
-} theme_style;
-static void theme_apply(lv_theme_t *theme, lv_obj_t *obj) {
-    if (!lv_obj_get_parent(obj)) {
-        lv_obj_add_style(obj, &theme_style.screen, LV_STATE_DEFAULT);
-    }
-    if (lv_obj_check_type(obj, &lv_label_class)) {
-        lv_obj_add_style(obj, &theme_style.label, LV_STATE_DEFAULT);
-    } else if (lv_obj_check_type(obj, &lv_button_class)) {
-        lv_obj_add_style(obj, &theme_style.button, LV_STATE_DEFAULT);
-    }
-}
-static void theme_load() {
-    lv_style_init(&theme_style.screen);
-    lv_style_set_bg_opa(&theme_style.screen, LV_OPA_COVER);
-    lv_style_set_bg_color(&theme_style.screen, lv_color_hex(0x000000));
-
-    lv_style_init(&theme_style.label);
-    lv_style_set_text_color(&theme_style.label, lv_color_hex(0xFFFFFF));
-
-    lv_style_init(&theme_style.button);
-    lv_style_set_bg_opa(&theme_style.button, LV_OPA_COVER);
-    lv_style_set_bg_color(&theme_style.button, lv_color_hex(0x000000));
-    lv_style_set_border_width(&theme_style.button, 1);
-    lv_style_set_border_color(&theme_style.button, lv_color_hex(0xFFFFFF));
-    lv_style_set_border_opa(&theme_style.button, LV_OPA_COVER);
-
-    lv_theme_t *theme = lv_theme_simple_get();
-    lv_theme_set_apply_cb(theme, theme_apply);
-    lv_obj_add_style(lv_screen_active(), &theme_style.screen, LV_STATE_DEFAULT);
-}
-
 static void build_layout(void *user_data) {
-    theme_load();
     _layout_head->config->build(lv_screen_active());
 }
 

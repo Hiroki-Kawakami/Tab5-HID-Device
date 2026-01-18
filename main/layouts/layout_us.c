@@ -123,12 +123,14 @@ static void button_event(lv_event_t* event) {
 }
 
 static void build(lv_obj_t *screen) {
+    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
     int width = lv_obj_get_width(screen);
 
     lv_obj_t *prev_row_obj = NULL;
     for (int r = 0; r < keyboard.size; r++) {
         struct row *row = &keyboard.rows[r];
         lv_obj_t *row_obj = lv_obj_create(screen);
+        lv_obj_remove_style_all(row_obj);
         lv_obj_set_size(row_obj, width, row->height);
         if (prev_row_obj) {
             lv_obj_align_to(row_obj, prev_row_obj, LV_ALIGN_OUT_BOTTOM_MID, 0, -1);
@@ -142,6 +144,9 @@ static void build(lv_obj_t *screen) {
         for (int c = 0; c < row->keys.size; c++) {
             const struct key *key = &row->keys.ptr[c];
             lv_obj_t *button = lv_button_create(row_obj);
+            lv_obj_remove_style_all(button);
+            lv_obj_set_style_border_width(button, 1, LV_PART_MAIN);
+            lv_obj_set_style_border_color(button, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
             lv_obj_set_height(button, row->height);
             if (key->width) {
                 lv_obj_set_width(button, key->width);
@@ -153,6 +158,7 @@ static void build(lv_obj_t *screen) {
             lv_obj_add_event_cb(button, button_event, LV_EVENT_PRESSING, (void *)key);
             lv_obj_t *label = lv_label_create(button);
             lv_label_set_text(label, key->label);
+            lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
             lv_obj_center(label);
         }
 
