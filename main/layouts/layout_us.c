@@ -3,6 +3,8 @@
  * Copyright (c) 2026 Hiroki Kawakami
  */
 
+#include "core/lv_obj.h"
+#include "core/lv_obj_pos.h"
 #include "layout.h"
 #include "hid_device.h"
 #include "hid_device_key.h"
@@ -146,6 +148,40 @@ static struct keyboard keyboard = SIZED_ARRAY((struct row[]){
     },
 });
 
+#define TRACKPAD_CLICK_TIMEOUT_MS 200
+
+static lv_point_t trackpad_last_point;
+static bool trackpad_moved;
+static uint32_t trackpad_press_time;
+
+static void trackpad_event(lv_event_t *event) {
+    lv_event_code_t code = lv_event_get_code(event);
+    lv_indev_t *indev = lv_indev_active();
+    lv_point_t point;
+    lv_indev_get_point(indev, &point);
+
+    if (code == LV_EVENT_PRESSED) {
+        trackpad_last_point = point;
+        trackpad_moved = false;
+        trackpad_press_time = lv_tick_get();
+    } else if (code == LV_EVENT_PRESSING) {
+        int dx = point.x - trackpad_last_point.x;
+        int dy = point.y - trackpad_last_point.y;
+        trackpad_last_point = point;
+        if (dx != 0 || dy != 0) {
+            trackpad_moved = true;
+            // TODO: send mouse movement
+            printf("trackpad: dx=%d, dy=%d\n", dx, dy);
+        }
+    } else if (code == LV_EVENT_RELEASED) {
+        uint32_t elapsed = lv_tick_elaps(trackpad_press_time);
+        if (!trackpad_moved && elapsed < TRACKPAD_CLICK_TIMEOUT_MS) {
+            // TODO: handle click
+            printf("trackpad: click\n");
+        }
+    }
+}
+
 static void button_event(lv_event_t* event) {
     const struct key *key = lv_event_get_user_data(event);
     if (!key->value) return;
@@ -170,9 +206,10 @@ static void button_event(lv_event_t* event) {
 
 static void build(lv_obj_t *screen) {
     lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);
-    int width = lv_obj_get_width(screen);
+    int width = lv_obj_get_width(screen), height = lv_obj_get_height(screen);
 
     lv_obj_t *prev_row_obj = NULL;
+    int keyboard_height = 0;
     for (int r = 0; r < keyboard.size; r++) {
         struct row *row = &keyboard.rows[r];
         lv_obj_t *row_obj = lv_obj_create(screen);
@@ -209,7 +246,18 @@ static void build(lv_obj_t *screen) {
         }
 
         prev_row_obj = row_obj;
+        keyboard_height += row->height;
     }
+
+    lv_obj_t *trackpad = lv_obj_create(screen);
+    lv_obj_remove_style_all(trackpad);
+    lv_obj_set_size(trackpad, width / 5 * 2, height - keyboard_height);
+    lv_obj_align(trackpad, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(trackpad, lv_color_hex(0x1A1A1A), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(trackpad, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_add_event_cb(trackpad, trackpad_event, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(trackpad, trackpad_event, LV_EVENT_PRESSING, NULL);
+    lv_obj_add_event_cb(trackpad, trackpad_event, LV_EVENT_RELEASED, NULL);
 }
 
 static const layout_config_t layout_config = {
