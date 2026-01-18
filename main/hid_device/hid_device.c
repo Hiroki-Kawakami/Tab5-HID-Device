@@ -6,6 +6,7 @@
 #include "hid_device.h"
 #include <string.h>
 #include <inttypes.h>
+#include "esp_random.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "esp_log.h"
@@ -53,10 +54,13 @@ void hid_device_push_event_msg(hid_device_msg_t *msg) {
 
 // MARK: Notify
 #define NOTIFY_CALLBACK_NUM_MAX 8
-static hid_device_notify_callback_t notify_callbacks[NOTIFY_CALLBACK_NUM_MAX];
+static struct {
+    hid_device_notify_callback_t func;
+    void *user_data;
+} notify_callbacks[NOTIFY_CALLBACK_NUM_MAX];
 static void hid_device_notify(hid_device_notify_t *notify) {
     for (int i = 0; i < NOTIFY_CALLBACK_NUM_MAX; i++) {
-        if (notify_callbacks[i]) notify_callbacks[i](notify);
+        if (notify_callbacks[i].func) notify_callbacks[i].func(notify, notify_callbacks[i].user_data);
     }
 }
 
@@ -107,6 +111,7 @@ bool peer_get_bonded_addr(ble_addr_t *addr) {
 
 // MARK: GAP
 static struct ble_hs_adv_fields adv_fields; // BLE advertisement fields
+static uint16_t current_conn_handle = BLE_HS_CONN_HANDLE_NONE;
 
 static int gap_event_handler(struct ble_gap_event *event, void *arg) {
     switch (event->type) {
@@ -126,16 +131,37 @@ static int gap_event_handler(struct ble_gap_event *event, void *arg) {
 
     case BLE_GAP_EVENT_ENC_CHANGE:
         ESP_LOGI(TAG, "Encryption change, status=%d", event->enc_change.status);
+        if (event->enc_change.status == 0) {
+            hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_MSG_CONNECT });
+        }
         break;
 
     case BLE_GAP_EVENT_PASSKEY_ACTION:
-        ESP_LOGI(TAG, "Passkey action requested");
+        ESP_LOGI(TAG, "Passkey action requested, action=%d", event->passkey.params.action);
+        current_conn_handle = event->passkey.conn_handle;
         if (event->passkey.params.action == BLE_SM_IOACT_DISP) {
+            uint32_t passkey = esp_random() % 1000000;
             struct ble_sm_io pkey = {0};
             pkey.action = event->passkey.params.action;
-            pkey.passkey = 123456;
-            ESP_LOGI(TAG, "Enter passkey %06" PRIu32 " on the peer device", pkey.passkey);
+            pkey.passkey = passkey;
+            ESP_LOGI(TAG, "Display passkey: %06" PRIu32, passkey);
             ble_sm_inject_io(event->passkey.conn_handle, &pkey);
+            hid_device_notify(&(hid_device_notify_t){
+                .type = HID_DEVICE_NOTIFY_PASSKEY_DISPLAY,
+                .passkey.passkey = passkey,
+            });
+        } else if (event->passkey.params.action == BLE_SM_IOACT_INPUT) {
+            ESP_LOGI(TAG, "Passkey input required");
+            hid_device_notify(&(hid_device_notify_t){
+                .type = HID_DEVICE_NOTIFY_PASSKEY_INPUT,
+            });
+        } else if (event->passkey.params.action == BLE_SM_IOACT_NUMCMP) {
+            uint32_t passkey = event->passkey.params.numcmp;
+            ESP_LOGI(TAG, "Numeric comparison: %06" PRIu32, passkey);
+            hid_device_notify(&(hid_device_notify_t){
+                .type = HID_DEVICE_NOTIFY_PASSKEY_CONFIRM,
+                .passkey.passkey = passkey,
+            });
         }
         break;
 
@@ -322,7 +348,6 @@ static void hidd_event_callback(void *handler_args, esp_event_base_t base, int32
 
     case ESP_HIDD_CONNECT_EVENT:
         ESP_LOGI(TAG, "HID device connected");
-        hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_MSG_CONNECT });
         break;
 
     case ESP_HIDD_PROTOCOL_MODE_EVENT:
@@ -394,7 +419,7 @@ esp_err_t hid_device_init(const hid_device_profile_t *profile) {
     }
 
     // Configure NimBLE security
-    ble_hs_cfg.sm_io_cap = BLE_SM_IO_CAP_DISP_ONLY;
+    ble_hs_cfg.sm_io_cap = BLE_SM_IO_CAP_KEYBOARD_DISP;
     ble_hs_cfg.sm_bonding = 1;
     ble_hs_cfg.sm_mitm = 1;
     ble_hs_cfg.sm_sc = 1;
@@ -431,19 +456,21 @@ esp_err_t hid_device_init(const hid_device_profile_t *profile) {
     ESP_LOGI(TAG, "HID device initialized");
     return ESP_OK;
 }
-void hid_device_add_notify_callback(hid_device_notify_callback_t callback) {
+void hid_device_add_notify_callback(hid_device_notify_callback_t callback, void *user_data) {
     for (int i = 0; i < NOTIFY_CALLBACK_NUM_MAX; i++) {
-        if (notify_callbacks[i] == NULL) {
-            notify_callbacks[i] = callback;
+        if (notify_callbacks[i].func == NULL) {
+            notify_callbacks[i].func = callback;
+            notify_callbacks[i].user_data = user_data;
             return;
         }
     }
     ESP_LOGE(TAG, "Failed to add notify callback, max reached");
 }
-void hid_device_remove_notify_callback(hid_device_notify_callback_t callback) {
+void hid_device_remove_notify_callback(hid_device_notify_callback_t callback, void *user_data) {
     for (int i = 0; i < NOTIFY_CALLBACK_NUM_MAX; i++) {
-        if (notify_callbacks[i] == callback) {
-            notify_callbacks[i] = NULL;
+        if (notify_callbacks[i].func == callback && notify_callbacks[i].user_data == user_data) {
+            notify_callbacks[i].func = NULL;
+            notify_callbacks[i].user_data = NULL;
             return;
         }
     }
@@ -459,4 +486,30 @@ void hid_device_start_pairing() {
 }
 void hid_device_stop_pairing() {
     hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_MSG_STOP_PAIRING });
+}
+void hid_device_passkey_input(uint32_t passkey) {
+    if (current_conn_handle == BLE_HS_CONN_HANDLE_NONE) {
+        ESP_LOGE(TAG, "No connection for passkey input");
+        return;
+    }
+    struct ble_sm_io pkey = {0};
+    pkey.action = BLE_SM_IOACT_INPUT;
+    pkey.passkey = passkey;
+    int rc = ble_sm_inject_io(current_conn_handle, &pkey);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "Failed to inject passkey, rc=%d", rc);
+    }
+}
+void hid_device_passkey_confirm(bool accept) {
+    if (current_conn_handle == BLE_HS_CONN_HANDLE_NONE) {
+        ESP_LOGE(TAG, "No connection for passkey confirm");
+        return;
+    }
+    struct ble_sm_io pkey = {0};
+    pkey.action = BLE_SM_IOACT_NUMCMP;
+    pkey.numcmp_accept = accept ? 1 : 0;
+    int rc = ble_sm_inject_io(current_conn_handle, &pkey);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "Failed to inject numcmp, rc=%d", rc);
+    }
 }

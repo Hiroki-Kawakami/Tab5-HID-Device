@@ -43,23 +43,31 @@ typedef enum {
 typedef struct {
     enum {
         HID_DEVICE_NOTIFY_STATE_CHANGED,
+        HID_DEVICE_NOTIFY_PASSKEY_DISPLAY,
+        HID_DEVICE_NOTIFY_PASSKEY_INPUT,
+        HID_DEVICE_NOTIFY_PASSKEY_CONFIRM,
     } type;
     union {
         struct {
             hid_device_state_t prev;
             hid_device_state_t current;
         } state;
+        struct {
+            uint32_t passkey;
+        } passkey;
     };
 } hid_device_notify_t;
-typedef void (*hid_device_notify_callback_t)(hid_device_notify_t *notify);
+typedef void (*hid_device_notify_callback_t)(hid_device_notify_t *notify, void *user_data);
 
 esp_err_t hid_device_init(const hid_device_profile_t *profile);
-void hid_device_add_notify_callback(hid_device_notify_callback_t callback);
-void hid_device_remove_notify_callback(hid_device_notify_callback_t callback);
+void hid_device_add_notify_callback(hid_device_notify_callback_t callback, void *user_data);
+void hid_device_remove_notify_callback(hid_device_notify_callback_t callback, void *user_data);
 hid_device_state_t hid_device_state(void);
 bool hid_device_is_connected(void);
 void hid_device_start_pairing(void);
 void hid_device_stop_pairing(void);
+void hid_device_passkey_input(uint32_t passkey);
+void hid_device_passkey_confirm(bool accept);
 void hid_device_send_report(size_t report_id, uint8_t *report, size_t length);
 
 // MARK: Profiles

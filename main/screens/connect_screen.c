@@ -5,6 +5,11 @@
 
 #include "connect_screen.h"
 #include "hid_device.h"
+#include "misc/lv_async.h"
+#include "stdlib/lv_mem.h"
+#include <stdint.h>
+#include <inttypes.h>
+#include <string.h>
 
 typedef struct {
     connect_screen_config_t config;
@@ -76,15 +81,69 @@ static void create_connect_indicator(connect_screen_t *screen) {
     }
 }
 
+typedef struct passkey_info passkey_info_t;
+struct passkey_info {
+    connect_screen_t *screen;
+    uint32_t passkey;
+    void (*show)(passkey_info_t *info);
+};
+
+static void confirm_btn_clicked(lv_event_t *e) {
+    lv_obj_t *msgbox = lv_event_get_user_data(e);
+    hid_device_passkey_confirm(true);
+    lv_msgbox_close(msgbox);
+}
+
+static void cancel_numcmp_btn_clicked(lv_event_t *e) {
+    lv_obj_t *msgbox = lv_event_get_user_data(e);
+    hid_device_passkey_confirm(false);
+    lv_msgbox_close(msgbox);
+}
+
+static void show_numeric_comparison(passkey_info_t *info) {
+    char passkey_str[32];
+    snprintf(passkey_str, sizeof(passkey_str), "Confirm passkey:\n\n%06" PRIu32, info->passkey);
+
+    lv_obj_t *msgbox = lv_msgbox_create(info->screen->screen);
+    lv_msgbox_add_title(msgbox, "Numeric Comparison");
+    lv_msgbox_add_text(msgbox, passkey_str);
+
+    lv_obj_t *confirm_btn = lv_msgbox_add_footer_button(msgbox, "Confirm");
+    lv_obj_add_event_cb(confirm_btn, confirm_btn_clicked, LV_EVENT_CLICKED, msgbox);
+
+    lv_obj_t *cancel_btn = lv_msgbox_add_footer_button(msgbox, "Cancel");
+    lv_obj_add_event_cb(cancel_btn, cancel_numcmp_btn_clicked, LV_EVENT_CLICKED, msgbox);
+
+    lv_obj_center(msgbox);
+}
+
+static void show_passkey_info_async(void *user_data) {
+    passkey_info_t *info = user_data;
+    info->show(info);
+    lv_free(info);
+}
+
+static void hid_device_notify_callback(hid_device_notify_t *notify, void *user_data) {
+    if (notify->type == HID_DEVICE_NOTIFY_PASSKEY_CONFIRM) {
+        passkey_info_t *info = lv_malloc(sizeof(passkey_info_t));
+        info->screen = user_data;
+        info->passkey = notify->passkey.passkey;
+        info->show = show_numeric_comparison;
+        lv_async_call(show_passkey_info_async, (void*)info);
+    }
+}
+
 static void screen_delete_cb(lv_event_t *e) {
     connect_screen_t *connect_screen = lv_event_get_user_data(e);
     if (connect_screen) {
         lv_free(connect_screen);
+        hid_device_remove_notify_callback(hid_device_notify_callback, connect_screen);
     }
 }
 
 void connect_screen_open(lv_obj_t *screen, connect_screen_config_t *config) {
     connect_screen_t *connect_screen = (connect_screen_t*)lv_malloc(sizeof(connect_screen_t));
+    hid_device_add_notify_callback(hid_device_notify_callback, connect_screen);
     lv_obj_set_user_data(screen, connect_screen);
     lv_obj_add_event_cb(screen, screen_delete_cb, LV_EVENT_DELETE, connect_screen);
 

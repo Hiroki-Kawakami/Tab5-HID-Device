@@ -139,7 +139,7 @@ static void update_screen_type_async(void *user_data) {
     update_screen_type(notify->state.current, notify->state.prev);
     lv_free(notify);
 }
-static void hid_device_notify_callback(hid_device_notify_t *notify) {
+static void hid_device_notify_callback(hid_device_notify_t *notify, void *user_data) {
     if (notify->type == HID_DEVICE_NOTIFY_STATE_CHANGED) {
         hid_device_notify_t *copy = lv_malloc(sizeof(hid_device_notify_t));
         *copy = *notify;
@@ -173,6 +173,6 @@ void app_main() {
     }
 
     // Initialize HID keyboard
-    hid_device_add_notify_callback(hid_device_notify_callback);
+    hid_device_add_notify_callback(hid_device_notify_callback, NULL);
     ESP_ERROR_CHECK(hid_device_init(&hid_device_profile_keyboard));
 }
