@@ -101,7 +101,7 @@ static void cancel_numcmp_btn_clicked(lv_event_t *e) {
 }
 
 static void show_numeric_comparison(passkey_info_t *info) {
-    char passkey_str[32];
+    char passkey_str[64];
     snprintf(passkey_str, sizeof(passkey_str), "Confirm passkey:\n\n%06" PRIu32, info->passkey);
 
     lv_obj_t *msgbox = lv_msgbox_create(info->screen->screen);
@@ -113,6 +113,25 @@ static void show_numeric_comparison(passkey_info_t *info) {
 
     lv_obj_t *cancel_btn = lv_msgbox_add_footer_button(msgbox, "Cancel");
     lv_obj_add_event_cb(cancel_btn, cancel_numcmp_btn_clicked, LV_EVENT_CLICKED, msgbox);
+
+    lv_obj_center(msgbox);
+}
+
+static void passkey_display_close_btn_clicked(lv_event_t *e) {
+    lv_obj_t *msgbox = lv_event_get_user_data(e);
+    lv_msgbox_close(msgbox);
+}
+
+static void show_passkey_display(passkey_info_t *info) {
+    char passkey_str[64];
+    snprintf(passkey_str, sizeof(passkey_str), "Enter this passkey on the host device:\n\n%06" PRIu32, info->passkey);
+
+    lv_obj_t *msgbox = lv_msgbox_create(info->screen->screen);
+    lv_msgbox_add_title(msgbox, "Passkey");
+    lv_msgbox_add_text(msgbox, passkey_str);
+
+    lv_obj_t *close_btn = lv_msgbox_add_footer_button(msgbox, "OK");
+    lv_obj_add_event_cb(close_btn, passkey_display_close_btn_clicked, LV_EVENT_CLICKED, msgbox);
 
     lv_obj_center(msgbox);
 }
@@ -129,6 +148,12 @@ static void hid_device_notify_callback(hid_device_notify_t *notify, void *user_d
         info->screen = user_data;
         info->passkey = notify->passkey.passkey;
         info->show = show_numeric_comparison;
+        lv_async_call(show_passkey_info_async, (void*)info);
+    } else if (notify->type == HID_DEVICE_NOTIFY_PASSKEY_DISPLAY) {
+        passkey_info_t *info = lv_malloc(sizeof(passkey_info_t));
+        info->screen = user_data;
+        info->passkey = notify->passkey.passkey;
+        info->show = show_passkey_display;
         lv_async_call(show_passkey_info_async, (void*)info);
     }
 }
