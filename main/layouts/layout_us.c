@@ -169,7 +169,7 @@ static void trackpad_event(lv_event_t *event) {
         trackpad_last_point = point;
         if (dx != 0 || dy != 0) {
             trackpad_moved = true;
-            hid_device_mouse_move(dx, dy);
+            hid_device_mouse_move(dx * 2, dy * 2);
         }
     } else if (code == LV_EVENT_RELEASED) {
         uint32_t elapsed = lv_tick_elaps(trackpad_press_time);
