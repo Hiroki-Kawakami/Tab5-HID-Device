@@ -2,17 +2,12 @@
 #include <stdio.h>
 #include <string.h>
 #include "bsp_tab5.h"
-#include "display/lv_display.h"
 #include "driver/ppa.h"
 #include "esp_log.h"
-#include "esp_err.h"
-#include "esp_heap_caps.h"
 #include "esp_lvgl_port.h"
 #include "hid_device.h"
 #include "layouts/layout.h"
-#include "misc/lv_async.h"
 #include "screens/connect_screen.h"
-#include "stdlib/lv_mem.h"
 
 static const char *TAG = "main";
 

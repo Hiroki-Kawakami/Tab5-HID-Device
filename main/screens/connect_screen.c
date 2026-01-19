@@ -5,10 +5,6 @@
 
 #include "connect_screen.h"
 #include "hid_device.h"
-#include "misc/lv_async.h"
-#include "stdlib/lv_mem.h"
-#include <stdint.h>
-#include <inttypes.h>
 #include <string.h>
 
 typedef struct {
