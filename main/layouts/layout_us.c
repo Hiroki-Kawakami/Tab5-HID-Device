@@ -293,6 +293,40 @@ static void build(lv_obj_t *screen) {
     lv_obj_center(mouse_separator);
     lv_obj_set_style_bg_color(mouse_separator, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(mouse_separator, LV_OPA_COVER, LV_PART_MAIN);
+
+    lv_obj_t *arrow_buttons = lv_obj_create(screen);
+    lv_obj_remove_style_all(arrow_buttons);
+    lv_obj_set_size(arrow_buttons, width / 10 * 3 - 20, 80);
+    lv_obj_align(arrow_buttons, LV_ALIGN_BOTTOM_RIGHT, -10, -10);
+
+    // 矢印キーの定義
+    static const struct {
+        struct key key;
+        lv_border_side_t border;
+        lv_align_t align;
+    } arrow_keys[] = {
+        {{ LV_SYMBOL_UP   , HID_DEVICE_KEY_UP    }, LV_BORDER_SIDE_TOP | LV_BORDER_SIDE_LEFT  | LV_BORDER_SIDE_RIGHT , LV_ALIGN_TOP_MID      },
+        {{ LV_SYMBOL_DOWN , HID_DEVICE_KEY_DOWN  }, LV_BORDER_SIDE_BOTTOM                                            , LV_ALIGN_BOTTOM_MID   },
+        {{ LV_SYMBOL_LEFT , HID_DEVICE_KEY_LEFT  }, LV_BORDER_SIDE_TOP | LV_BORDER_SIDE_LEFT  | LV_BORDER_SIDE_BOTTOM, LV_ALIGN_BOTTOM_LEFT  },
+        {{ LV_SYMBOL_RIGHT, HID_DEVICE_KEY_RIGHT }, LV_BORDER_SIDE_TOP | LV_BORDER_SIDE_RIGHT | LV_BORDER_SIDE_BOTTOM, LV_ALIGN_BOTTOM_RIGHT },
+    };
+    for (int i = 0; i < (sizeof(arrow_keys) / sizeof(arrow_keys[0])); i++) {
+        lv_obj_t *button = lv_button_create(arrow_buttons);
+        lv_obj_remove_style_all(button);
+        lv_obj_set_size(button, lv_pct(34), lv_pct(50));
+        lv_obj_align(button, arrow_keys[i].align, 0, 0);
+        lv_obj_set_style_border_width(button, 1, LV_PART_MAIN);
+        lv_obj_set_style_border_color(button, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+        lv_obj_set_style_border_side(button, arrow_keys[i].border, LV_PART_MAIN);
+        lv_obj_add_event_cb(button, button_event, LV_EVENT_PRESSED, (void *)&arrow_keys[i].key);
+        lv_obj_add_event_cb(button, button_event, LV_EVENT_RELEASED, (void *)&arrow_keys[i].key);
+        lv_obj_add_event_cb(button, button_event, LV_EVENT_PRESSING, (void *)&arrow_keys[i].key);
+        lv_obj_t *label = lv_label_create(button);
+        lv_label_set_text(label, arrow_keys[i].key.label);
+        lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+        lv_obj_center(label);
+    }
+    // lv_obj_add_event_cb(up_btn, button_event, LV_EVENT_PRESSING, (void *)&arrow_keys[0]);
 }
 
 static const layout_config_t layout_config = {
