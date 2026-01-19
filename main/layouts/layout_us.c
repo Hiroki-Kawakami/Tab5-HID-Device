@@ -237,6 +237,9 @@ static void build(lv_obj_t *screen) {
             lv_obj_remove_style_all(button);
             lv_obj_set_style_border_width(button, 1, LV_PART_MAIN);
             lv_obj_set_style_border_color(button, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(button, lv_color_hex(0x000000), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(button, lv_color_hex(0x333333), LV_STATE_PRESSED);
+            lv_obj_set_style_bg_opa(button, LV_OPA_COVER, LV_PART_MAIN);
             lv_obj_set_height(button, row->height);
             if (key->width) {
                 lv_obj_set_width(button, key->width);
@@ -277,6 +280,9 @@ static void build(lv_obj_t *screen) {
     lv_obj_remove_style_all(mouse_left_btn);
     lv_obj_set_size(mouse_left_btn, lv_pct(50), lv_pct(100));
     lv_obj_align(mouse_left_btn, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_style_bg_color(mouse_left_btn, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(mouse_left_btn, lv_color_hex(0x333333), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(mouse_left_btn, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_add_event_cb(mouse_left_btn, mouse_button_event, LV_EVENT_PRESSED, (void *)HID_DEVICE_MOUSE_BUTTON_LEFT);
     lv_obj_add_event_cb(mouse_left_btn, mouse_button_event, LV_EVENT_RELEASED, (void *)HID_DEVICE_MOUSE_BUTTON_LEFT);
 
@@ -284,6 +290,9 @@ static void build(lv_obj_t *screen) {
     lv_obj_remove_style_all(mouse_right_btn);
     lv_obj_set_size(mouse_right_btn, lv_pct(50), lv_pct(100));
     lv_obj_align(mouse_right_btn, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_set_style_bg_color(mouse_right_btn, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(mouse_right_btn, lv_color_hex(0x333333), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(mouse_right_btn, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_add_event_cb(mouse_right_btn, mouse_button_event, LV_EVENT_PRESSED, (void *)HID_DEVICE_MOUSE_BUTTON_RIGHT);
     lv_obj_add_event_cb(mouse_right_btn, mouse_button_event, LV_EVENT_RELEASED, (void *)HID_DEVICE_MOUSE_BUTTON_RIGHT);
 
@@ -318,6 +327,9 @@ static void build(lv_obj_t *screen) {
         lv_obj_set_style_border_width(button, 1, LV_PART_MAIN);
         lv_obj_set_style_border_color(button, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
         lv_obj_set_style_border_side(button, arrow_keys[i].border, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(button, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(button, lv_color_hex(0x333333), LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(button, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_add_event_cb(button, button_event, LV_EVENT_PRESSED, (void *)&arrow_keys[i].key);
         lv_obj_add_event_cb(button, button_event, LV_EVENT_RELEASED, (void *)&arrow_keys[i].key);
         lv_obj_add_event_cb(button, button_event, LV_EVENT_PRESSING, (void *)&arrow_keys[i].key);
@@ -326,7 +338,6 @@ static void build(lv_obj_t *screen) {
         lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
         lv_obj_center(label);
     }
-    // lv_obj_add_event_cb(up_btn, button_event, LV_EVENT_PRESSING, (void *)&arrow_keys[0]);
 }
 
 static const layout_config_t layout_config = {
