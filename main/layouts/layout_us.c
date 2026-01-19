@@ -141,7 +141,7 @@ static struct keyboard keyboard = SIZED_ARRAY((struct row[]){
             { " ", HID_DEVICE_KEY_SPACE },  // flex
             { "Alt", HID_DEVICE_KEY_RIGHT_ALT, K },
             { "Win", HID_DEVICE_KEY_RIGHT_GUI, K },
-            { "Fn", HID_DEVICE_KEY_NONE, K },
+            // { "Fn", HID_DEVICE_KEY_NONE, K },
             { "Ctrl", HID_DEVICE_KEY_RIGHT_CTRL, C },
         }),
     },
