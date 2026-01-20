@@ -17,7 +17,12 @@
 #include "st7123/st7123_touch.h"
 #include "nvs_flash.h"
 #include "esp_hosted.h"
+#ifdef CONFIG_BT_BLUEDROID_ENABLED
+#include "esp_hosted_bt.h"
+#endif
+#ifdef CONFIG_BT_NIMBLE_ENABLED
 #include "nimble/nimble_port.h"
+#endif
 
 static const char *TAG = "BSP_TAB5";
 
@@ -152,11 +157,26 @@ esp_err_t bsp_tab5_init(const bsp_tab5_config_t *config) {
 
     // Bluetooth
     if (config->bluetooth.enable) {
+#if defined(CONFIG_BT_BLUEDROID_ENABLED)
+        /* initialize TRANSPORT first */
+        hosted_hci_bluedroid_open();
+
+        /* get HCI driver operations */
+        esp_bluedroid_hci_driver_operations_t operations = {
+            .send = hosted_hci_bluedroid_send,
+            .check_send_available = hosted_hci_bluedroid_check_send_available,
+            .register_host_callback = hosted_hci_bluedroid_register_host_callback,
+        };
+        esp_bluedroid_attach_hci_driver(&operations);
+#elif defined(CONFIG_BT_NIMBLE_ENABLED)
         err = nimble_port_init();
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to initialize NimBLE");
             return err;
         }
+#else
+        ESP_LOGE(TAG, "Bluetooth Stack is not Enabled.");
+#endif
     }
 
     return ESP_OK;

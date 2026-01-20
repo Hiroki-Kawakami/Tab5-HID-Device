@@ -13,14 +13,12 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "esp_log.h"
+#include "esp_bt_defs.h"
+#include "esp_bt_main.h"
+#include "esp_gap_ble_api.h"
+#include "esp_gatts_api.h"
 #include "esp_hidd.h"
 #include "esp_hid_common.h"
-#include "host/ble_hs.h"
-#include "host/ble_gap.h"
-#include "host/util/util.h"
-#include "nimble/nimble_port.h"
-#include "nimble/nimble_port_freertos.h"
-#include "services/gap/ble_svc_gap.h"
 
 static const char *TAG = "hid_device";
 
@@ -92,7 +90,7 @@ static esp_hid_device_config_t *profile_get_device_config(void) {
     config.version = current_profile->version ?: 0x0100;
     config.device_name = profile_get_device_name();
     config.manufacturer_name = current_profile->manufacturer_name ?: "M5Stack";
-    config.serial_number = current_profile->serial_number ?: "0000001"; // temporary
+    config.serial_number = current_profile->serial_number ?: "0000001";
 
     static esp_hid_raw_report_map_t report_map;
     report_map.data = current_profile->report_map.data;
@@ -102,157 +100,148 @@ static esp_hid_device_config_t *profile_get_device_config(void) {
     return &config;
 }
 
-// MARK: Peer Storage
-bool peer_get_bonded_addr(ble_addr_t *addr) {
-    ble_addr_t peer_addrs[16];
-    int num_peers;
-    int rc = ble_store_util_bonded_peers(peer_addrs, &num_peers, 16);
-    if (rc == 0 && num_peers > 0) {
-        *addr = peer_addrs[0];
+// MARK: Bonded Device Storage
+static bool get_bonded_device(esp_bd_addr_t addr) {
+    int dev_num = esp_ble_get_bond_device_num();
+    if (dev_num <= 0) return false;
+
+    esp_ble_bond_dev_t *dev_list = malloc(sizeof(esp_ble_bond_dev_t) * dev_num);
+    if (!dev_list) return false;
+
+    esp_ble_get_bond_device_list(&dev_num, dev_list);
+    if (dev_num > 0) {
+        memcpy(addr, dev_list[0].bd_addr, sizeof(esp_bd_addr_t));
+        free(dev_list);
         return true;
     }
+    free(dev_list);
     return false;
 }
 
 // MARK: GAP
-static struct ble_hs_adv_fields adv_fields; // BLE advertisement fields
-static uint16_t current_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+static esp_bd_addr_t current_peer_addr;  // Store peer address for passkey/confirm reply
 
-static int gap_event_handler(struct ble_gap_event *event, void *arg) {
-    switch (event->type) {
-    case BLE_GAP_EVENT_CONNECT:
-        ESP_LOGI(TAG, "GAP connection %s, status=%d",
-                 event->connect.status == 0 ? "established" : "failed",
-                 event->connect.status);
+static esp_ble_adv_params_t adv_params = {
+    .adv_int_min        = 0x20,
+    .adv_int_max        = 0x30,
+    .adv_type           = ADV_TYPE_IND,
+    .own_addr_type      = BLE_ADDR_TYPE_PUBLIC,
+    .channel_map        = ADV_CHNL_ALL,
+    .adv_filter_policy  = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
+};
+
+static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+    switch (event) {
+    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
+        ESP_LOGD(TAG, "GAP ADV data set complete");
+        esp_ble_gap_start_advertising(&adv_params);
         break;
 
-    case BLE_GAP_EVENT_DISCONNECT:
-        ESP_LOGI(TAG, "GAP disconnected, reason=%d", event->disconnect.reason);
+    case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
+        if (param->adv_start_cmpl.status == ESP_BT_STATUS_SUCCESS) {
+            ESP_LOGI(TAG, "Advertising started");
+        } else {
+            ESP_LOGE(TAG, "Advertising start failed: %d", param->adv_start_cmpl.status);
+        }
         break;
 
-    case BLE_GAP_EVENT_ADV_COMPLETE:
-        ESP_LOGI(TAG, "Advertising complete, reason=%d", event->adv_complete.reason);
+    case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
+        ESP_LOGI(TAG, "Advertising stopped");
         break;
 
-    case BLE_GAP_EVENT_ENC_CHANGE:
-        ESP_LOGI(TAG, "Encryption change, status=%d", event->enc_change.status);
-        if (event->enc_change.status == 0) {
+    case ESP_GAP_BLE_SEC_REQ_EVT:
+        ESP_LOGI(TAG, "Security request from "ESP_BD_ADDR_STR, ESP_BD_ADDR_HEX(param->ble_security.ble_req.bd_addr));
+        esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
+        break;
+
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+        ESP_LOGI(TAG, "Passkey notify: %06" PRIu32, param->ble_security.key_notif.passkey);
+        memcpy(current_peer_addr, param->ble_security.key_notif.bd_addr, sizeof(esp_bd_addr_t));
+        hid_device_notify(&(hid_device_notify_t){
+            .type = HID_DEVICE_NOTIFY_PASSKEY_DISPLAY,
+            .passkey.passkey = param->ble_security.key_notif.passkey,
+        });
+        break;
+
+    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+        ESP_LOGI(TAG, "Passkey request");
+        memcpy(current_peer_addr, param->ble_security.ble_req.bd_addr, sizeof(esp_bd_addr_t));
+        hid_device_notify(&(hid_device_notify_t){
+            .type = HID_DEVICE_NOTIFY_PASSKEY_INPUT,
+        });
+        break;
+
+    case ESP_GAP_BLE_NC_REQ_EVT:
+        ESP_LOGI(TAG, "Numeric comparison: %06" PRIu32, param->ble_security.key_notif.passkey);
+        memcpy(current_peer_addr, param->ble_security.key_notif.bd_addr, sizeof(esp_bd_addr_t));
+        hid_device_notify(&(hid_device_notify_t){
+            .type = HID_DEVICE_NOTIFY_PASSKEY_CONFIRM,
+            .passkey.passkey = param->ble_security.key_notif.passkey,
+        });
+        break;
+
+    case ESP_GAP_BLE_AUTH_CMPL_EVT:
+        if (param->ble_security.auth_cmpl.success) {
+            ESP_LOGI(TAG, "Authentication complete, addr_type=%d, auth_mode=%d",
+                     param->ble_security.auth_cmpl.addr_type,
+                     param->ble_security.auth_cmpl.auth_mode);
             hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_MSG_CONNECT });
+        } else {
+            ESP_LOGE(TAG, "Authentication failed: 0x%x", param->ble_security.auth_cmpl.fail_reason);
         }
         break;
-
-    case BLE_GAP_EVENT_PASSKEY_ACTION:
-        ESP_LOGI(TAG, "Passkey action requested, action=%d", event->passkey.params.action);
-        current_conn_handle = event->passkey.conn_handle;
-        if (event->passkey.params.action == BLE_SM_IOACT_DISP) {
-            uint32_t passkey = esp_random() % 1000000;
-            struct ble_sm_io pkey = {0};
-            pkey.action = event->passkey.params.action;
-            pkey.passkey = passkey;
-            ESP_LOGI(TAG, "Display passkey: %06" PRIu32, passkey);
-            ble_sm_inject_io(event->passkey.conn_handle, &pkey);
-            hid_device_notify(&(hid_device_notify_t){
-                .type = HID_DEVICE_NOTIFY_PASSKEY_DISPLAY,
-                .passkey.passkey = passkey,
-            });
-        } else if (event->passkey.params.action == BLE_SM_IOACT_INPUT) {
-            ESP_LOGI(TAG, "Passkey input required");
-            hid_device_notify(&(hid_device_notify_t){
-                .type = HID_DEVICE_NOTIFY_PASSKEY_INPUT,
-            });
-        } else if (event->passkey.params.action == BLE_SM_IOACT_NUMCMP) {
-            uint32_t passkey = event->passkey.params.numcmp;
-            ESP_LOGI(TAG, "Numeric comparison: %06" PRIu32, passkey);
-            hid_device_notify(&(hid_device_notify_t){
-                .type = HID_DEVICE_NOTIFY_PASSKEY_CONFIRM,
-                .passkey.passkey = passkey,
-            });
-        }
-        break;
-
-    case BLE_GAP_EVENT_REPEAT_PAIRING: {
-        struct ble_gap_conn_desc desc;
-        ble_gap_conn_find(event->repeat_pairing.conn_handle, &desc);
-        ble_store_util_delete_peer(&desc.peer_id_addr);
-        return BLE_GAP_REPEAT_PAIRING_RETRY;
-    }
 
     default:
+        ESP_LOGD(TAG, "GAP event: %d", event);
         break;
     }
-    return 0;
 }
 
-static void start_pairing(void) { // Undirected Connectable
-    struct ble_gap_adv_params adv_params;
-    struct ble_hs_adv_fields rsp_fields;
-    int rc;
+static void start_pairing(void) {
+    ESP_LOGI(TAG, "Starting pairing (undirected advertising)...");
 
-    // Primary advertisement data (limited to 31 bytes)
-    memset(&adv_fields, 0, sizeof(adv_fields));
-    adv_fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
-    adv_fields.appearance = profile_get_appearance();
-    adv_fields.appearance_is_present = 1;
+    uint8_t adv_svc_uuid[] = {
+        0xFB, 0x34, 0x9B, 0x5F, 0x80, 0x00, 0x00, 0x80,
+        0x00, 0x10, 0x00, 0x00, 0x12, 0x18, 0x00, 0x00,  // HID Service UUID
+    };
 
-    static ble_uuid16_t hid_uuid = BLE_UUID16_INIT(0x1812);  // HID Service UUID
-    adv_fields.uuids16 = &hid_uuid;
-    adv_fields.num_uuids16 = 1;
-    adv_fields.uuids16_is_complete = 1;
+    esp_ble_adv_data_t adv_data = {
+        .set_scan_rsp = false,
+        .include_name = true,
+        .include_txpower = true,
+        .min_interval = 0x0006,
+        .max_interval = 0x0010,
+        .appearance = profile_get_appearance(),
+        .manufacturer_len = 0,
+        .p_manufacturer_data = NULL,
+        .service_data_len = 0,
+        .p_service_data = NULL,
+        .service_uuid_len = sizeof(adv_svc_uuid),
+        .p_service_uuid = adv_svc_uuid,
+        .flag = ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT,
+    };
 
-    rc = ble_gap_adv_set_fields(&adv_fields);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Failed to set adv fields, rc=%d", rc);
-        return;
-    }
-
-    // Scan response data (for device name)
-    memset(&rsp_fields, 0, sizeof(rsp_fields));
-    rsp_fields.name = (uint8_t *)profile_get_device_name();
-    rsp_fields.name_len = strlen(profile_get_device_name());
-    rsp_fields.name_is_complete = 1;
-    rsp_fields.tx_pwr_lvl_is_present = 1;
-    rsp_fields.tx_pwr_lvl = BLE_HS_ADV_TX_PWR_LVL_AUTO;
-
-    rc = ble_gap_adv_rsp_set_fields(&rsp_fields);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Failed to set scan rsp fields, rc=%d", rc);
-        return;
-    }
-
-    memset(&adv_params, 0, sizeof(adv_params));
-    adv_params.conn_mode = BLE_GAP_CONN_MODE_UND;
-    adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN;
-    adv_params.itvl_min = BLE_GAP_ADV_ITVL_MS(30);
-    adv_params.itvl_max = BLE_GAP_ADV_ITVL_MS(50);
-
-    rc = ble_gap_adv_start(BLE_OWN_ADDR_PUBLIC, NULL, BLE_HS_FOREVER,
-                           &adv_params, gap_event_handler, NULL);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Failed to start pairing, rc=%d", rc);
-        return;
-    }
-    ESP_LOGI(TAG, "Pairing started");
+    adv_params.adv_type = ADV_TYPE_IND;
+    esp_ble_gap_config_adv_data(&adv_data);
 }
+
 static void stop_pairing(void) {
-    ble_gap_adv_stop();
+    esp_ble_gap_stop_advertising();
     ESP_LOGI(TAG, "Pairing stopped");
 }
 
-static void start_advertise(ble_addr_t *addr) { // Directed Connectable
-    struct ble_gap_adv_params adv_params = {0};
-    adv_params.conn_mode = BLE_GAP_CONN_MODE_DIR;
-    adv_params.disc_mode = BLE_GAP_DISC_MODE_NON;  // 発見不可
+static void start_advertise(esp_bd_addr_t addr) {
+    ESP_LOGI(TAG, "Starting directed advertising to "ESP_BD_ADDR_STR, ESP_BD_ADDR_HEX(addr));
 
-    int rc = ble_gap_adv_start(BLE_OWN_ADDR_PUBLIC, addr, BLE_HS_FOREVER,
-                            &adv_params, gap_event_handler, NULL);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Failed to start advertising, rc=%d", rc);
-        return;
-    }
-    ESP_LOGI(TAG, "Advertising started");
+    adv_params.adv_type = ADV_TYPE_DIRECT_IND_LOW;
+    memcpy(adv_params.peer_addr, addr, sizeof(esp_bd_addr_t));
+    adv_params.peer_addr_type = BLE_ADDR_TYPE_PUBLIC;
+
+    esp_ble_gap_start_advertising(&adv_params);
 }
+
 static void stop_advertise(void) {
-    ble_gap_adv_stop();
+    esp_ble_gap_stop_advertising();
     ESP_LOGI(TAG, "Advertising stopped");
 }
 
@@ -262,9 +251,9 @@ static hid_device_state_t current_state = HID_DEVICE_STATE_BEGIN;
 
 static hid_device_state_t state_begin_event_handler(hid_device_msg_t *msg) {
     if (msg->type == HID_DEVICE_MSG_START) {
-        ble_addr_t addr;
-        if (peer_get_bonded_addr(&addr)) {
-            start_advertise(&addr);
+        esp_bd_addr_t addr;
+        if (get_bonded_device(addr)) {
+            start_advertise(addr);
             return HID_DEVICE_STATE_WAIT_CONNECT;
         } else {
             start_pairing();
@@ -293,9 +282,9 @@ static hid_device_state_t state_pairing_event_handler(hid_device_msg_t *msg) {
 }
 static hid_device_state_t state_active_event_handler(hid_device_msg_t *msg) {
     if (msg->type == HID_DEVICE_MSG_DISCONNECT) {
-        ble_addr_t addr;
-        if (peer_get_bonded_addr(&addr)) {
-            start_advertise(&addr);
+        esp_bd_addr_t addr;
+        if (get_bonded_device(addr)) {
+            start_advertise(addr);
             return HID_DEVICE_STATE_WAIT_CONNECT;
         } else {
             start_pairing();
@@ -365,6 +354,7 @@ static void hidd_event_callback(void *handler_args, esp_event_base_t base, int32
 
     case ESP_HIDD_CONNECT_EVENT:
         ESP_LOGI(TAG, "HID device connected");
+        // hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_MSG_CONNECT });
         break;
 
     case ESP_HIDD_PROTOCOL_MODE_EVENT:
@@ -380,6 +370,7 @@ static void hidd_event_callback(void *handler_args, esp_event_base_t base, int32
     case ESP_HIDD_OUTPUT_EVENT:
         ESP_LOGI(TAG, "Output report received, ID: %d, Len: %d",
                  param->output.report_id, param->output.length);
+        // TODO: Add callback for output report handling
         break;
 
     case ESP_HIDD_FEATURE_EVENT:
@@ -404,25 +395,61 @@ static void hidd_event_callback(void *handler_args, esp_event_base_t base, int32
     }
 }
 
-// MARK: NimBLE
-static void ble_host_task(void *param) {
-    ESP_LOGI(TAG, "BLE host task started");
-    nimble_port_run();
-    nimble_port_freertos_deinit();
-}
+// MARK: Bluedroid Init
+static esp_err_t init_bluetooth(void) {
+    esp_err_t ret;
 
-static void on_sync(void) {
-    ESP_LOGI(TAG, "BLE host synced");
-
-    int rc = ble_hs_util_ensure_addr(0);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Failed to ensure address, rc=%d", rc);
-        return;
+    // Initialize Bluedroid
+    ret = esp_bluedroid_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bluedroid_init failed: %s", esp_err_to_name(ret));
+        return ret;
     }
-}
 
-static void on_reset(int reason) {
-    ESP_LOGW(TAG, "BLE host reset, reason=%d", reason);
+    ret = esp_bluedroid_enable();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bluedroid_enable failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    // Set device name
+    esp_ble_gap_set_device_name(profile_get_device_name());
+
+    // Register GAP callback
+    ret = esp_ble_gap_register_callback(gap_event_handler);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ble_gap_register_callback failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    // Register GATTS callback (handled by esp_hidd internally)
+    extern void esp_hidd_gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
+    ret = esp_ble_gatts_register_callback(esp_hidd_gatts_event_handler);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ble_gatts_register_callback failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    // Configure security
+    esp_ble_auth_req_t auth_req = ESP_LE_AUTH_REQ_SC_MITM_BOND;
+    esp_ble_io_cap_t iocap = ESP_IO_CAP_KBDISP;
+    uint8_t key_size = 16;
+    uint8_t init_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
+    uint8_t rsp_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
+    uint32_t passkey = 0;  // Will be generated randomly
+    uint8_t auth_option = ESP_BLE_ONLY_ACCEPT_SPECIFIED_AUTH_DISABLE;
+    uint8_t oob_support = ESP_BLE_OOB_DISABLE;
+
+    esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &auth_req, sizeof(auth_req));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(iocap));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &key_size, sizeof(key_size));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_SET_INIT_KEY, &init_key, sizeof(init_key));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &rsp_key, sizeof(rsp_key));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_SET_STATIC_PASSKEY, &passkey, sizeof(passkey));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_ONLY_ACCEPT_SPECIFIED_SEC_AUTH, &auth_option, sizeof(auth_option));
+    esp_ble_gap_set_security_param(ESP_BLE_SM_OOB_SUPPORT, &oob_support, sizeof(oob_support));
+
+    return ESP_OK;
 }
 
 esp_err_t hid_device_init(const hid_device_profile_t *profile) {
@@ -435,28 +462,17 @@ esp_err_t hid_device_init(const hid_device_profile_t *profile) {
         return ESP_ERR_NO_MEM;
     }
 
-    // Configure NimBLE security
-    ble_hs_cfg.sm_io_cap = BLE_SM_IO_CAP_KEYBOARD_DISP;
-    ble_hs_cfg.sm_bonding = 1;
-    ble_hs_cfg.sm_mitm = 1;
-    ble_hs_cfg.sm_sc = 1;
-    ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ID | BLE_SM_PAIR_KEY_DIST_ENC;
-    ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ID | BLE_SM_PAIR_KEY_DIST_ENC;
-    ble_hs_cfg.reset_cb = on_reset;
-    ble_hs_cfg.sync_cb = on_sync;
-    ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
+    // Store profile
+    current_profile = profile;
 
-    // Initialize NVS store
-    extern void ble_store_config_init(void);
-    ble_store_config_init();
+    // Initialize Bluetooth
+    ret = init_bluetooth();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to init Bluetooth: %s", esp_err_to_name(ret));
+        return ret;
+    }
 
     // Initialize HID device
-    current_profile = profile;
-    int rc = ble_svc_gap_device_name_set(profile_get_device_name());
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Failed to set device name: %d", rc);
-        return ESP_FAIL;
-    }
     esp_hid_device_config_t *hid_config = profile_get_device_config();
     ret = esp_hidd_dev_init(hid_config, ESP_HID_TRANSPORT_BLE, hidd_event_callback, &hid_dev);
     if (ret != ESP_OK) {
@@ -464,17 +480,15 @@ esp_err_t hid_device_init(const hid_device_profile_t *profile) {
         return ret;
     }
 
-    // Start NimBLE host task
-    nimble_port_freertos_init(ble_host_task);
-
     // Start HID Device Control
     hid_device_keyboard_init();
     hid_device_mouse_init();
     xTaskCreate(hid_device_task, "hid_device", 8192, NULL, 5, NULL);
 
-    ESP_LOGI(TAG, "HID device initialized");
+    ESP_LOGI(TAG, "HID device initialized (Bluedroid)");
     return ESP_OK;
 }
+
 void hid_device_add_notify_callback(hid_device_notify_callback_t callback, void *user_data) {
     for (int i = 0; i < NOTIFY_CALLBACK_NUM_MAX; i++) {
         if (notify_callbacks[i].func == NULL) {
@@ -500,37 +514,17 @@ hid_device_state_t hid_device_state(void) {
 bool hid_device_is_connected(void) {
     return current_state == HID_DEVICE_STATE_ACTIVE;
 }
-void hid_device_start_pairing() {
+void hid_device_start_pairing(void) {
     hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_MSG_START_PAIRING });
 }
-void hid_device_stop_pairing() {
+void hid_device_stop_pairing(void) {
     hid_device_push_event_msg(&(hid_device_msg_t){ HID_DEVICE_MSG_STOP_PAIRING });
 }
 void hid_device_passkey_input(uint32_t passkey) {
-    if (current_conn_handle == BLE_HS_CONN_HANDLE_NONE) {
-        ESP_LOGE(TAG, "No connection for passkey input");
-        return;
-    }
-    struct ble_sm_io pkey = {0};
-    pkey.action = BLE_SM_IOACT_INPUT;
-    pkey.passkey = passkey;
-    int rc = ble_sm_inject_io(current_conn_handle, &pkey);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Failed to inject passkey, rc=%d", rc);
-    }
+    esp_ble_passkey_reply(current_peer_addr, true, passkey);
 }
 void hid_device_passkey_confirm(bool accept) {
-    if (current_conn_handle == BLE_HS_CONN_HANDLE_NONE) {
-        ESP_LOGE(TAG, "No connection for passkey confirm");
-        return;
-    }
-    struct ble_sm_io pkey = {0};
-    pkey.action = BLE_SM_IOACT_NUMCMP;
-    pkey.numcmp_accept = accept ? 1 : 0;
-    int rc = ble_sm_inject_io(current_conn_handle, &pkey);
-    if (rc != 0) {
-        ESP_LOGE(TAG, "Failed to inject numcmp, rc=%d", rc);
-    }
+    esp_ble_confirm_reply(current_peer_addr, accept);
 }
 
 void hid_device_send_report(uint8_t report_id, uint8_t *report, uint16_t size, bool auto_free) {
