@@ -1,0 +1,9 @@
+[project]
+name = "layout-builder"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "pycairo>=1.29.0",
+]
