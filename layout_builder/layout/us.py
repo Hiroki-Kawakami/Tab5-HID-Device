@@ -1,5 +1,4 @@
 from typing import Any, Type
-from dataclasses import dataclass
 
 def keyboard_layout(renderer: Any):
     # Fn Row
@@ -58,8 +57,20 @@ def trackpad_layout(renderer: Any):
     renderer.trackpad_buttons_lr(x=20, y=600, width=344, height=100)
 
 def build(renderer_class: Type):
-    normal = renderer_class()
+    normal = renderer_class(
+        key_bg_color = (0.2, 0.2, 0.2),
+        key_text_color = (1.0, 1.0, 1.0),
+    )
     normal.fill((0, 0, 0))
     keyboard_layout(normal)
     trackpad_layout(normal)
     normal.write('us.normal')
+
+    active = renderer_class(
+        key_bg_color = (0.6, 0.6, 0.6),
+        key_text_color = (1.0, 1.0, 1.0),
+    )
+    active.fill((0, 0, 0))
+    keyboard_layout(active)
+    trackpad_layout(active)
+    active.write('us.active')

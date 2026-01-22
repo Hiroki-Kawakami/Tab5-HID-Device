@@ -2,11 +2,15 @@ import cairo
 import math
 
 class DefaultRenderer:
-    def __init__(self):
+    def __init__(
+        self,
+        key_bg_color: tuple[float, float, float],
+        key_text_color: tuple[float, float, float],
+    ):
         self.surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, 1280, 720)
         self.ctx = cairo.Context(self.surface)
-        self.key_bg_color = (0.2, 0.2, 0.2)
-        self.key_text_color = (1.0, 1.0, 1.0)
+        self.key_bg_color = key_bg_color
+        self.key_text_color = key_text_color
 
     def fill(self, color: tuple[float, float, float]):
         self.ctx.set_source_rgb(color[0], color[1], color[2])  # 背景色
