@@ -97,7 +97,7 @@ class DefaultRenderer:
         if label:
             self._draw_text(label, x, y, width, height, font_size)
 
-    def key(self, label: str, x: int, y: int, width: int, height: int):
+    def key(self, label: str, x: int, y: int, width: int, height: int, **kwargs):
         self._round_rect(x + 2, y + 2, width - 4, height - 4, 6, label, border_color=(0.4, 0.4, 0.4))
 
     def arrows(self, x: int, y: int, width: int, height: int):
