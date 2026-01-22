@@ -1,92 +1,90 @@
 #include "hid_device_key.h"
 #include "layouts/layout.h"
 
-static const layout_key_t layout_keyboard_keys[] = {
-    [1] = { HID_DEVICE_KEY_ESCAPE, 0, 0, 92, 60 }
-    [2] = { HID_DEVICE_KEY_F1, 92, 0, 91, 60 }
-    [3] = { HID_DEVICE_KEY_F2, 183, 0, 92, 60 }
-    [4] = { HID_DEVICE_KEY_F3, 275, 0, 91, 60 }
-    [5] = { HID_DEVICE_KEY_F4, 366, 0, 91, 60 }
-    [6] = { HID_DEVICE_KEY_F5, 457, 0, 92, 60 }
-    [7] = { HID_DEVICE_KEY_F6, 549, 0, 91, 60 }
-    [8] = { HID_DEVICE_KEY_F7, 640, 0, 91, 60 }
-    [9] = { HID_DEVICE_KEY_F8, 731, 0, 92, 60 }
-    [10] = { HID_DEVICE_KEY_F9, 823, 0, 91, 60 }
-    [11] = { HID_DEVICE_KEY_F10, 914, 0, 91, 60 }
-    [12] = { HID_DEVICE_KEY_F11, 1005, 0, 92, 60 }
-    [13] = { HID_DEVICE_KEY_F12, 1097, 0, 91, 60 }
-    [14] = { HID_DEVICE_KEY_DELETE, 1188, 0, 92, 60 }
-    [15] = { HID_DEVICE_KEY_GRAVE, 0, 60, 89, 80 }
-    [16] = { HID_DEVICE_KEY_1, 89, 60, 89, 80 }
-    [17] = { HID_DEVICE_KEY_2, 178, 60, 89, 80 }
-    [18] = { HID_DEVICE_KEY_3, 267, 60, 89, 80 }
-    [19] = { HID_DEVICE_KEY_4, 356, 60, 89, 80 }
-    [20] = { HID_DEVICE_KEY_5, 445, 60, 89, 80 }
-    [21] = { HID_DEVICE_KEY_6, 534, 60, 89, 80 }
-    [22] = { HID_DEVICE_KEY_7, 623, 60, 89, 80 }
-    [23] = { HID_DEVICE_KEY_8, 712, 60, 89, 80 }
-    [24] = { HID_DEVICE_KEY_9, 801, 60, 89, 80 }
-    [25] = { HID_DEVICE_KEY_0, 890, 60, 89, 80 }
-    [26] = { HID_DEVICE_KEY_MINUS, 979, 60, 89, 80 }
-    [27] = { HID_DEVICE_KEY_EQUAL, 1068, 60, 89, 80 }
-    [28] = { HID_DEVICE_KEY_BACKSPACE, 1157, 60, 123, 80 }
-    [29] = { HID_DEVICE_KEY_TAB, 0, 140, 123, 80 }
-    [30] = { HID_DEVICE_KEY_Q, 123, 140, 89, 80 }
-    [31] = { HID_DEVICE_KEY_W, 212, 140, 89, 80 }
-    [32] = { HID_DEVICE_KEY_E, 301, 140, 89, 80 }
-    [33] = { HID_DEVICE_KEY_R, 390, 140, 89, 80 }
-    [34] = { HID_DEVICE_KEY_T, 479, 140, 89, 80 }
-    [35] = { HID_DEVICE_KEY_Y, 568, 140, 89, 80 }
-    [36] = { HID_DEVICE_KEY_U, 657, 140, 89, 80 }
-    [37] = { HID_DEVICE_KEY_I, 746, 140, 89, 80 }
-    [38] = { HID_DEVICE_KEY_O, 835, 140, 89, 80 }
-    [39] = { HID_DEVICE_KEY_P, 924, 140, 89, 80 }
-    [40] = { HID_DEVICE_KEY_LEFT_BRACKET, 1013, 140, 89, 80 }
-    [41] = { HID_DEVICE_KEY_RIGHT_BRACKET, 1102, 140, 89, 80 }
-    [42] = { HID_DEVICE_KEY_BACKSLASH, 1191, 140, 89, 80 }
-    [43] = { HID_DEVICE_KEY_CAPS_LOCK, 0, 220, 150, 80 }
-    [44] = { HID_DEVICE_KEY_A, 150, 220, 89, 80 }
-    [45] = { HID_DEVICE_KEY_S, 239, 220, 89, 80 }
-    [46] = { HID_DEVICE_KEY_D, 328, 220, 89, 80 }
-    [47] = { HID_DEVICE_KEY_F, 417, 220, 89, 80 }
-    [48] = { HID_DEVICE_KEY_G, 506, 220, 89, 80 }
-    [49] = { HID_DEVICE_KEY_H, 595, 220, 89, 80 }
-    [50] = { HID_DEVICE_KEY_J, 684, 220, 89, 80 }
-    [51] = { HID_DEVICE_KEY_K, 773, 220, 89, 80 }
-    [52] = { HID_DEVICE_KEY_L, 862, 220, 89, 80 }
-    [53] = { HID_DEVICE_KEY_SEMICOLON, 951, 220, 89, 80 }
-    [54] = { HID_DEVICE_KEY_QUOTE, 1040, 220, 89, 80 }
-    [55] = { HID_DEVICE_KEY_ENTER, 1129, 220, 151, 80 }
-    [56] = { HID_DEVICE_KEY_LEFT_SHIFT, 0, 300, 195, 80 }
-    [57] = { HID_DEVICE_KEY_Z, 195, 300, 89, 80 }
-    [58] = { HID_DEVICE_KEY_X, 284, 300, 89, 80 }
-    [59] = { HID_DEVICE_KEY_C, 373, 300, 89, 80 }
-    [60] = { HID_DEVICE_KEY_V, 462, 300, 89, 80 }
-    [61] = { HID_DEVICE_KEY_B, 551, 300, 89, 80 }
-    [62] = { HID_DEVICE_KEY_N, 640, 300, 89, 80 }
-    [63] = { HID_DEVICE_KEY_M, 729, 300, 89, 80 }
-    [64] = { HID_DEVICE_KEY_COMMA, 818, 300, 89, 80 }
-    [65] = { HID_DEVICE_KEY_DOT, 907, 300, 89, 80 }
-    [66] = { HID_DEVICE_KEY_SLASH, 996, 300, 89, 80 }
-    [67] = { HID_DEVICE_KEY_RIGHT_SHIFT, 1085, 300, 195, 80 }
-    [68] = { HID_DEVICE_KEY_LEFT_CTRL, 0, 380, 112, 80 }
-    [69] = { HID_DEVICE_KEY_LEFT_GUI, 112, 380, 112, 80 }
-    [70] = { HID_DEVICE_KEY_LEFT_ALT, 224, 380, 112, 80 }
-    [71] = { HID_DEVICE_KEY_SPACE, 336, 380, 608, 80 }
-    [72] = { HID_DEVICE_KEY_RIGHT_ALT, 944, 380, 112, 80 }
-    [73] = { HID_DEVICE_KEY_RIGHT_GUI, 1056, 380, 112, 80 }
-    [74] = { HID_DEVICE_KEY_RIGHT_CTRL, 1168, 380, 112, 80 }
-    [75] = { HID_DEVICE_KEY_LEFT, 916, 619, 114, 81 }
-    [76] = { HID_DEVICE_KEY_RIGHT, 1146, 619, 114, 81 }
-    [77] = { HID_DEVICE_KEY_UP, 916, 539, 116, 80 }
-    [78] = { HID_DEVICE_KEY_DOWN, 916, 620, 116, 80 }
-    [79] = { HID_DEVICE_KEY_MOUSE_BUTTON_1, 20, 600, 172, 100 }
-    [80] = { HID_DEVICE_KEY_MOUSE_BUTTON_2, 192, 600, 172, 100 }
-};
 static const layout_input_t layout_inputs[] = {
-    { LAYOUT_INPUT_TYPE_TRACKPAD, 384, 460, 512, 260 }
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 0, 0, 92, 60 }, .key = HID_DEVICE_KEY_ESCAPE },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 92, 0, 91, 60 }, .key = HID_DEVICE_KEY_F1 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 183, 0, 92, 60 }, .key = HID_DEVICE_KEY_F2 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 275, 0, 91, 60 }, .key = HID_DEVICE_KEY_F3 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 366, 0, 91, 60 }, .key = HID_DEVICE_KEY_F4 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 457, 0, 92, 60 }, .key = HID_DEVICE_KEY_F5 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 549, 0, 91, 60 }, .key = HID_DEVICE_KEY_F6 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 640, 0, 91, 60 }, .key = HID_DEVICE_KEY_F7 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 731, 0, 92, 60 }, .key = HID_DEVICE_KEY_F8 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 823, 0, 91, 60 }, .key = HID_DEVICE_KEY_F9 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 914, 0, 91, 60 }, .key = HID_DEVICE_KEY_F10 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1005, 0, 92, 60 }, .key = HID_DEVICE_KEY_F11 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1097, 0, 91, 60 }, .key = HID_DEVICE_KEY_F12 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1188, 0, 92, 60 }, .key = HID_DEVICE_KEY_DELETE },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 0, 60, 89, 80 }, .key = HID_DEVICE_KEY_GRAVE },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 89, 60, 89, 80 }, .key = HID_DEVICE_KEY_1 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 178, 60, 89, 80 }, .key = HID_DEVICE_KEY_2 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 267, 60, 89, 80 }, .key = HID_DEVICE_KEY_3 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 356, 60, 89, 80 }, .key = HID_DEVICE_KEY_4 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 445, 60, 89, 80 }, .key = HID_DEVICE_KEY_5 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 534, 60, 89, 80 }, .key = HID_DEVICE_KEY_6 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 623, 60, 89, 80 }, .key = HID_DEVICE_KEY_7 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 712, 60, 89, 80 }, .key = HID_DEVICE_KEY_8 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 801, 60, 89, 80 }, .key = HID_DEVICE_KEY_9 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 890, 60, 89, 80 }, .key = HID_DEVICE_KEY_0 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 979, 60, 89, 80 }, .key = HID_DEVICE_KEY_MINUS },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1068, 60, 89, 80 }, .key = HID_DEVICE_KEY_EQUAL },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1157, 60, 123, 80 }, .key = HID_DEVICE_KEY_BACKSPACE },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 0, 140, 123, 80 }, .key = HID_DEVICE_KEY_TAB },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 123, 140, 89, 80 }, .key = HID_DEVICE_KEY_Q },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 212, 140, 89, 80 }, .key = HID_DEVICE_KEY_W },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 301, 140, 89, 80 }, .key = HID_DEVICE_KEY_E },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 390, 140, 89, 80 }, .key = HID_DEVICE_KEY_R },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 479, 140, 89, 80 }, .key = HID_DEVICE_KEY_T },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 568, 140, 89, 80 }, .key = HID_DEVICE_KEY_Y },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 657, 140, 89, 80 }, .key = HID_DEVICE_KEY_U },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 746, 140, 89, 80 }, .key = HID_DEVICE_KEY_I },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 835, 140, 89, 80 }, .key = HID_DEVICE_KEY_O },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 924, 140, 89, 80 }, .key = HID_DEVICE_KEY_P },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1013, 140, 89, 80 }, .key = HID_DEVICE_KEY_LEFT_BRACKET },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1102, 140, 89, 80 }, .key = HID_DEVICE_KEY_RIGHT_BRACKET },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1191, 140, 89, 80 }, .key = HID_DEVICE_KEY_BACKSLASH },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 0, 220, 150, 80 }, .key = HID_DEVICE_KEY_CAPS_LOCK },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 150, 220, 89, 80 }, .key = HID_DEVICE_KEY_A },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 239, 220, 89, 80 }, .key = HID_DEVICE_KEY_S },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 328, 220, 89, 80 }, .key = HID_DEVICE_KEY_D },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 417, 220, 89, 80 }, .key = HID_DEVICE_KEY_F },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 506, 220, 89, 80 }, .key = HID_DEVICE_KEY_G },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 595, 220, 89, 80 }, .key = HID_DEVICE_KEY_H },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 684, 220, 89, 80 }, .key = HID_DEVICE_KEY_J },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 773, 220, 89, 80 }, .key = HID_DEVICE_KEY_K },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 862, 220, 89, 80 }, .key = HID_DEVICE_KEY_L },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 951, 220, 89, 80 }, .key = HID_DEVICE_KEY_SEMICOLON },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1040, 220, 89, 80 }, .key = HID_DEVICE_KEY_QUOTE },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1129, 220, 151, 80 }, .key = HID_DEVICE_KEY_ENTER },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 0, 300, 195, 80 }, .key = HID_DEVICE_KEY_LEFT_SHIFT },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 195, 300, 89, 80 }, .key = HID_DEVICE_KEY_Z },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 284, 300, 89, 80 }, .key = HID_DEVICE_KEY_X },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 373, 300, 89, 80 }, .key = HID_DEVICE_KEY_C },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 462, 300, 89, 80 }, .key = HID_DEVICE_KEY_V },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 551, 300, 89, 80 }, .key = HID_DEVICE_KEY_B },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 640, 300, 89, 80 }, .key = HID_DEVICE_KEY_N },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 729, 300, 89, 80 }, .key = HID_DEVICE_KEY_M },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 818, 300, 89, 80 }, .key = HID_DEVICE_KEY_COMMA },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 907, 300, 89, 80 }, .key = HID_DEVICE_KEY_DOT },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 996, 300, 89, 80 }, .key = HID_DEVICE_KEY_SLASH },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1085, 300, 195, 80 }, .key = HID_DEVICE_KEY_RIGHT_SHIFT },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 0, 380, 112, 80 }, .key = HID_DEVICE_KEY_LEFT_CTRL },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 112, 380, 112, 80 }, .key = HID_DEVICE_KEY_LEFT_GUI },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 224, 380, 112, 80 }, .key = HID_DEVICE_KEY_LEFT_ALT },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 336, 380, 608, 80 }, .key = HID_DEVICE_KEY_SPACE },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 944, 380, 112, 80 }, .key = HID_DEVICE_KEY_RIGHT_ALT },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1056, 380, 112, 80 }, .key = HID_DEVICE_KEY_RIGHT_GUI },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1168, 380, 112, 80 }, .key = HID_DEVICE_KEY_RIGHT_CTRL },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 916, 619, 114, 81 }, .key = HID_DEVICE_KEY_LEFT },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 1146, 619, 114, 81 }, .key = HID_DEVICE_KEY_RIGHT },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 916, 539, 116, 80 }, .key = HID_DEVICE_KEY_UP },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 916, 620, 116, 80 }, .key = HID_DEVICE_KEY_UP },
+    { .type = LAYOUT_INPUT_TYPE_TRACKPAD, .size = { 384, 460, 512, 260 } },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 20, 600, 172, 100 }, .key = HID_DEVICE_KEY_MOUSE_BUTTON_1 },
+    { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 192, 600, 172, 100 }, .key = HID_DEVICE_KEY_MOUSE_BUTTON_2 },
 };
 const layout_def_t layout_us_def = {
-    .keys = { 80, layout_keyboard_keys },
-    .inputs = { 1, layout_inputs },
+    .inputs = layout_inputs,
+    .count = 81,
 };

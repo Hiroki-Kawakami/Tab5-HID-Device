@@ -6,31 +6,26 @@
 #include "esp_lvgl_port.h"
 #include <string.h>
 
-typedef struct {
-    uint32_t key;
-    uint16_t x, y, width, height;
-} layout_key_t;
-
 typedef enum {
     LAYOUT_INPUT_TYPE_NONE,
+    LAYOUT_INPUT_TYPE_KEY,
     LAYOUT_INPUT_TYPE_TRACKPAD,
     LAYOUT_INPUT_TYPE_MAX,
 } layout_input_type_t;
 
 typedef struct {
     layout_input_type_t type;
-    uint16_t x, y, width, height;
+    struct {
+        uint16_t x, y, width, height;
+    } size;
+    union {
+        uint32_t key;
+    };
 } layout_input_t;
 
 typedef struct {
-    struct {
-        size_t count;
-        const layout_key_t *data;
-    } keys;
-    struct {
-        size_t count;
-        const layout_input_t *data;
-    } inputs;
+    const layout_input_t *inputs;
+    size_t count;
 } layout_def_t;
 
 typedef struct {

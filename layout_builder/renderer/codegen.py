@@ -1,72 +1,72 @@
-from dataclasses import dataclass
+from typing import Any
 
-@dataclass
-class Key:
-    item: str
-    x: int
-    y: int
-    width: int
-    height: int
-
-@dataclass
 class Input:
     type: str
     x: int
     y: int
     width: int
     height: int
+    attr: dict[str, Any]
+
+    def __init__(self, type: str, x: int, y: int, width: int, height: int, **kwargs):
+        self.type = type
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.attr = kwargs
+
+    def generate(self) -> str:
+        generated = f'.type = LAYOUT_INPUT_TYPE_{self.type}, .size = {{ {self.x}, {self.y}, {self.width}, {self.height} }}'
+        if self.type == 'KEY':
+            generated += f', .key = HID_DEVICE_KEY_{self.attr['item']}'
+        return f'{{ {generated} }},'
 
 class Codegen:
-    keyboard_keys: list[Key]
     inputs: list[Input]
 
     def __init__(self):
-        self.keyboard_keys = []
-        self.keyboard_pairs = {}
         self.inputs = []
 
     def fill(self, color: tuple[float, float, float]):
         pass
 
     def key(self, item: str, x: int, y: int, width: int, height: int, **kwargs):
-        self.keyboard_keys.append(Key(item, x, y, width, height))
+        self.inputs.append(Input('KEY', item=item, x=x, y=y, width=width, height=height))
 
     def arrows(self, x: int, y: int, width: int, height: int):
         lr_key_width = width // 3
         ud_key_width = width - (lr_key_width * 2)
         lr_key_height = height // 2
-        self.keyboard_keys.append(Key('LEFT' , x                       , y + lr_key_height    , lr_key_width, lr_key_height + 1))
-        self.keyboard_keys.append(Key('RIGHT', x + width - lr_key_width, y + lr_key_height    , lr_key_width, lr_key_height + 1))
-        self.keyboard_keys.append(Key('UP'   , x                       , y                    , ud_key_width, lr_key_height    ))
-        self.keyboard_keys.append(Key('DOWN' , x                       , y + lr_key_height + 1, ud_key_width, lr_key_height    ))
+        keys = [
+            { 'item': 'LEFT' , 'x': x                       , 'y': y + lr_key_height    , 'width': lr_key_width, 'height': lr_key_height + 1 },
+            { 'item': 'RIGHT', 'x': x + width - lr_key_width, 'y': y + lr_key_height    , 'width': lr_key_width, 'height': lr_key_height + 1 },
+            { 'item': 'UP'   , 'x': x                       , 'y': y                    , 'width': ud_key_width, 'height': lr_key_height     },
+            { 'item': 'UP'   , 'x': x                       , 'y': y + lr_key_height + 1, 'width': ud_key_width, 'height': lr_key_height     },
+        ]
+        for k in keys: self.inputs.append(Input('KEY', **k))
 
     def trackpad(self, x: int, y: int, width: int, height: int):
-        self.inputs.append(Input('TRACKPAD', x, y, width, height))
+        self.inputs.append(Input(type='TRACKPAD', x=x, y=y, width=width, height=height))
 
     def trackpad_buttons_lr(self, x: int, y: int, width: int, height: int):
-        self.keyboard_keys.append(Key('MOUSE_BUTTON_1', x             , y, width // 2, height))
-        self.keyboard_keys.append(Key('MOUSE_BUTTON_2', x + width // 2, y, width // 2, height))
+        self.inputs.append(Input('KEY', item='MOUSE_BUTTON_1', x=x             , y=y, width=width // 2, height=height))
+        self.inputs.append(Input('KEY', item='MOUSE_BUTTON_2', x=x + width // 2, y=y, width=width // 2, height=height))
 
     def write(self, filename: str):
-        keyboard_keys_array = '\n'.join([
-            'static const layout_key_t layout_keyboard_keys[] = {',
-            *(f'    [{i + 1}] = {{ HID_DEVICE_KEY_{key.item}, {key.x}, {key.y}, {key.width}, {key.height} }}' for i, key in enumerate(self.keyboard_keys)),
-            '};',
-        ])
         inputs_array = '\n'.join([
             'static const layout_input_t layout_inputs[] = {',
-            *(f'    {{ LAYOUT_INPUT_TYPE_{input.type}, {input.x}, {input.y}, {input.width}, {input.height} }}' for input in self.inputs),
+            *(f'    {input.generate()}' for input in self.inputs),
             '};',
         ])
         layout_def = '\n'.join([
             f'const layout_def_t {filename}_def = {{',
-            f'    .keys = {{ {len(self.keyboard_keys)}, layout_keyboard_keys }},',
-            f'    .inputs = {{ {len(self.inputs)}, layout_inputs }},',
+            f'    .inputs = layout_inputs,',
+            f'    .count = {len(self.inputs)},',
             '};',
         ])
         with open(f'out/{filename}_def.c', 'w') as f:
             f.write('#include "hid_device_key.h"\n')
             f.write('#include "layouts/layout.h"\n\n')
-            f.write(keyboard_keys_array + '\n')
             f.write(inputs_array + '\n')
             f.write(layout_def + '\n')
