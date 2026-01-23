@@ -142,4 +142,4 @@ def build(renderer_class: Type, codegen_class: Type):
     code = codegen_class()
     keyboard_layout(code)
     trackpad_layout(code)
-    code.write('layout_us')
+    code.write('layout_us', '1. US')

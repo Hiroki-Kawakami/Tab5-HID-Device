@@ -84,7 +84,9 @@ static const layout_input_t layout_inputs[] = {
     { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 20, 600, 172, 100 }, .key = HID_DEVICE_KEY_MOUSE_BUTTON_1 },
     { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 192, 600, 172, 100 }, .key = HID_DEVICE_KEY_MOUSE_BUTTON_2 },
 };
-const layout_def_t layout_us_def = {
+const layout_config_t layout_config = {
+    .name = "1. US",
     .inputs = layout_inputs,
     .count = 81,
 };
+LAYOUT_REGISTER(layout_config)

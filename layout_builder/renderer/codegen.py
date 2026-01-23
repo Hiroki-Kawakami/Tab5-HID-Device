@@ -53,19 +53,21 @@ class Codegen:
         self.inputs.append(Input('KEY', item='MOUSE_BUTTON_1', x=x             , y=y, width=width // 2, height=height))
         self.inputs.append(Input('KEY', item='MOUSE_BUTTON_2', x=x + width // 2, y=y, width=width // 2, height=height))
 
-    def write(self, filename: str):
+    def write(self, filename: str, layoutname: str):
         inputs_array = '\n'.join([
             'static const layout_input_t layout_inputs[] = {',
             *(f'    {input.generate()}' for input in self.inputs),
             '};',
         ])
         layout_def = '\n'.join([
-            f'const layout_def_t {filename}_def = {{',
+            f'const layout_config_t layout_config = {{',
+            f'    .name = "{layoutname}",',
             f'    .inputs = layout_inputs,',
             f'    .count = {len(self.inputs)},',
             '};',
+            'LAYOUT_REGISTER(layout_config)',
         ])
-        with open(f'out/{filename}_def.c', 'w') as f:
+        with open(f'out/{filename}.c', 'w') as f:
             f.write('#include "hid_device_key.h"\n')
             f.write('#include "layouts/layout.h"\n\n')
             f.write(inputs_array + '\n')

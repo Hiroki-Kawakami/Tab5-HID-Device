@@ -24,13 +24,9 @@ typedef struct {
 } layout_input_t;
 
 typedef struct {
+    const char *name;
     const layout_input_t *inputs;
     size_t count;
-} layout_def_t;
-
-typedef struct {
-    const char *name;
-    void (*build)(lv_obj_t *screen);
 } layout_config_t;
 
 typedef struct _layout_context _layout_context_t;
