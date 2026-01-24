@@ -151,7 +151,6 @@ void display_mux_layout_load_images(const layout_image_t *base, const layout_ima
 }
 
 void display_mux_layout_draw_region(const void *image_buffer, uint16_t x, uint16_t y, uint16_t width, uint16_t height) {
-    ESP_LOGI(TAG, "display_mux_layout_draw_region: image=%p, x=%d, y=%d, width=%d, height=%d", image_buffer, x, y, width, height);
     esp_err_t err = ppa_do_scale_rotate_mirror(layout_ppa, &(ppa_srm_oper_config_t){
         .in = {
             .buffer = image_buffer,

@@ -5,10 +5,81 @@
 
 #include "layout_screen.h"
 #include "display_mux.h"
+#include "esp_log.h"
 
-#define ACTIVE_INPUTS_MAX (5)
+static const char *TAG = "LayoutScreen";
+#define TOUCH_POINT_MAX (5)
+
+typedef struct {
+    const layout_input_t *input;
+    uint8_t touched;
+} active_input_state_t;
+
+// MARK: Key
+static void key_touch_press(active_input_state_t *state, uint8_t track_id, uint16_t x, uint16_t y) {
+    display_mux_layout_draw_region(display_mux_layout_active_image,
+        state->input->region.x, state->input->region.y, state->input->region.width, state->input->region.height);
+}
+static void key_touch_release(active_input_state_t *state, uint8_t track_id) {
+    display_mux_layout_draw_region(display_mux_layout_base_image,
+        state->input->region.x, state->input->region.y, state->input->region.width, state->input->region.height);
+}
+
+// MARK: Touch Handles
 static const layout_config_t *current_layout_config;
-static const layout_input_t *current_active_inputs[ACTIVE_INPUTS_MAX];
+static active_input_state_t active_input_states[TOUCH_POINT_MAX];
+static struct {
+    bool touched;
+    esp_lcd_touch_point_data_t data;
+} last_touch_points[TOUCH_POINT_MAX];
+
+static const struct {
+    void (*press)(active_input_state_t *state, uint8_t track_id, uint16_t x, uint16_t y);
+    void (*add)(active_input_state_t *state, uint8_t track_id, uint16_t x, uint16_t y);
+    void (*move)(active_input_state_t *state, uint8_t track_id, uint16_t x, uint16_t y, int16_t dx, int16_t dy);
+    void (*remove)(active_input_state_t *state, uint8_t track_id);
+    void (*release)(active_input_state_t *state, uint8_t track_id);
+} touch_callback[LAYOUT_INPUT_TYPE_MAX] = {
+    [LAYOUT_INPUT_TYPE_KEY] = {
+        .press = key_touch_press,
+        .release = key_touch_release,
+    },
+};
+
+#define GET_CALLBACK(state) (touch_callback[state->input->type])
+static void invoke_callback_press(active_input_state_t *state, esp_lcd_touch_point_data_t *point) {
+    ESP_LOGI(TAG, "Press: [%d] x=%d, y=%d", point->track_id, point->x, point->y);
+    if (GET_CALLBACK(state).press) {
+        GET_CALLBACK(state).press(state, point->track_id, point->x, point->y);
+    }
+}
+static void invoke_callback_add(active_input_state_t *state, esp_lcd_touch_point_data_t *point) {
+    ESP_LOGI(TAG, "Add: [%d] x=%d, y=%d", point->track_id, point->x, point->y);
+    if (GET_CALLBACK(state).add) {
+        GET_CALLBACK(state).add(state, point->track_id, point->x, point->y);
+    }
+}
+static void invoke_callback_move(active_input_state_t *state, esp_lcd_touch_point_data_t *point) {
+    int16_t dx = point->x - last_touch_points[point->track_id].data.x;
+    int16_t dy = point->y - last_touch_points[point->track_id].data.y;
+    if (dx == 0 && dy == 0) return;
+    ESP_LOGI(TAG, "Move: [%d] x=%d, y=%d, dx=%d, dy=%d", point->track_id, point->x, point->y, dx, dy);
+    if (GET_CALLBACK(state).move) {
+        GET_CALLBACK(state).move(state, point->track_id, point->x, point->y, dx, dy);
+    }
+}
+static void invoke_callback_remove(active_input_state_t *state, uint8_t track_id) {
+    ESP_LOGI(TAG, "Remove: [%d]", track_id);
+    if (GET_CALLBACK(state).remove) {
+        GET_CALLBACK(state).remove(state, track_id);
+    }
+}
+static void invoke_callback_release(active_input_state_t *state, uint8_t track_id) {
+    ESP_LOGI(TAG, "Release: [%d]", track_id);
+    if (GET_CALLBACK(state).release) {
+        GET_CALLBACK(state).release(state, track_id);
+    }
+}
 
 static const layout_input_t *find_input(uint16_t x, uint16_t y) {
     for (int i = 0; i < current_layout_config->count; i++) {
@@ -20,33 +91,72 @@ static const layout_input_t *find_input(uint16_t x, uint16_t y) {
     }
     return NULL;
 }
-static bool input_is_active(const layout_input_t* input, const layout_input_t **list) {
-    for (int i = 0; i < ACTIVE_INPUTS_MAX; i++) {
-        if (list[i] == input) return true;
+static active_input_state_t *active_input_state_get(const layout_input_t* input) {
+    for (int i = 0; i < ARRAY_SIZE(active_input_states); i++) {
+        if (active_input_states[i].input == input) return &active_input_states[i];
     }
-    return false;
+    return NULL;
+}
+static active_input_state_t *active_input_state_find(uint8_t track_id) {
+    for (int i = 0; i < ARRAY_SIZE(active_input_states); i++) {
+        if (!active_input_states[i].input) continue;
+        if (active_input_states[i].touched & (1 << track_id)) return &active_input_states[i];
+    }
+    return NULL;
 }
 
 void layout_screen_on_touch(int touch_num, esp_lcd_touch_point_data_t touches[5]) {
-    const layout_input_t *active_inputs[ACTIVE_INPUTS_MAX] = {};
+    bool track_id_is_active[TOUCH_POINT_MAX] = {};
     for (int i = 0; i < touch_num; i++) {
-        active_inputs[touches[i].track_id] = find_input(touches[i].x, touches[i].y);
+        track_id_is_active[touches[i].track_id] = true;
+        active_input_state_t *state = active_input_state_find(touches[i].track_id);
+        if (state) {
+            invoke_callback_move(state, &touches[i]);
+            continue;
+        }
+        if (last_touch_points[touches[i].track_id].touched) continue;
+
+        const layout_input_t *input = find_input(touches[i].x, touches[i].y);
+        if (!input) continue;
+
+        state = active_input_state_get(input);
+        if (state) {
+            state->touched |= (1 << touches[i].track_id);
+            invoke_callback_add(state, &touches[i]);
+            continue;
+        }
+
+        for (int i = 0; i < TOUCH_POINT_MAX; i++) {
+            if (!active_input_states[i].input) {
+                state = &active_input_states[i];
+                break;
+            }
+        }
+        state->input = input;
+        state->touched = (1 << touches[i].track_id);
+        invoke_callback_press(state, &touches[i]);
     }
-    for (int i = 0; i < ACTIVE_INPUTS_MAX; i++) {
-        if (!current_active_inputs[i] || input_is_active(current_active_inputs[i], active_inputs)) continue;
-        display_mux_layout_draw_region(display_mux_layout_base_image,
-            current_active_inputs[i]->region.x, current_active_inputs[i]->region.y,
-            current_active_inputs[i]->region.width, current_active_inputs[i]->region.height
-        );
+    for (int i = 0; i < TOUCH_POINT_MAX; i++) {
+        if (last_touch_points[i].touched && !track_id_is_active[i]) {
+            active_input_state_t *state = active_input_state_find(i);
+            if (state) {
+                state->touched &= ~(1 << i);
+                if (state->touched) {
+                    invoke_callback_remove(state, i);
+                } else {
+                    invoke_callback_release(state, i);
+                    state->input = NULL;
+                }
+            }
+        }
+        last_touch_points[i].touched = track_id_is_active[i];
+        for (int j = 0; j < touch_num; j++) {
+            if (touches[j].track_id == i) {
+                last_touch_points[i].data = touches[j];
+                break;
+            }
+        }
     }
-    for (int i = 0; i < ACTIVE_INPUTS_MAX; i++) {
-        if (!active_inputs[i] || input_is_active(active_inputs[i], current_active_inputs)) continue;
-        display_mux_layout_draw_region(display_mux_layout_active_image,
-            active_inputs[i]->region.x, active_inputs[i]->region.y,
-            active_inputs[i]->region.width, active_inputs[i]->region.height
-        );
-    }
-    memcpy(current_active_inputs, active_inputs, sizeof(current_active_inputs));
 }
 
 void layout_screen_open(const layout_config_t *config) {
