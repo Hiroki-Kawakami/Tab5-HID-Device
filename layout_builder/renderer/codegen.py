@@ -49,8 +49,8 @@ class Codegen:
         keys = [
             { 'item': 'LEFT' , 'x': x                       , 'y': y + lr_key_height    , 'width': lr_key_width, 'height': lr_key_height + 1 },
             { 'item': 'RIGHT', 'x': x + width - lr_key_width, 'y': y + lr_key_height    , 'width': lr_key_width, 'height': lr_key_height + 1 },
-            { 'item': 'UP'   , 'x': x                       , 'y': y                    , 'width': ud_key_width, 'height': lr_key_height     },
-            { 'item': 'UP'   , 'x': x                       , 'y': y + lr_key_height + 1, 'width': ud_key_width, 'height': lr_key_height     },
+            { 'item': 'UP'   , 'x': x + lr_key_width        , 'y': y                    , 'width': ud_key_width, 'height': lr_key_height     },
+            { 'item': 'DOWN' , 'x': x + lr_key_width        , 'y': y + lr_key_height + 1, 'width': ud_key_width, 'height': lr_key_height     },
         ]
         for k in keys: self.inputs.append(Input('KEY', **k))
 
