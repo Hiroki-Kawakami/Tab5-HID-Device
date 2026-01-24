@@ -104,6 +104,7 @@ esp_err_t bsp_tab5_init(const bsp_tab5_config_t *config) {
             .int_gpio = GPIO_NUM_23,
             .rst_gpio = GPIO_NUM_NC,
             .scl_speed_hz = 100000,
+            .interrupt = config->touch.interrupt,
         }, &st7123_touch);
         BSP_RETURN_ERR(err);
     } else if (i2c_master_probe(i2c0, 0x14, 10) == ESP_OK) {
@@ -204,4 +205,5 @@ int bsp_tab5_touch_read(esp_lcd_touch_point_data_t *points, uint8_t max_points) 
 }
 void bsp_tab5_touch_wait_interrupt(void) {
     if (gt911) gt911_touch_wait_interrupt(gt911);
+    if (st7123_touch) st7123_touch_wait_interrupt(st7123_touch);
 }

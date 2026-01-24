@@ -4,8 +4,6 @@
  */
 
 #include "st7123_touch.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
 #include "esp_lcd_touch_st7123.h"
 
 static const char *TAG = "ST7123_TP";
@@ -13,7 +11,15 @@ static const char *TAG = "ST7123_TP";
 struct st7123_touch_state {
     esp_lcd_panel_io_handle_t io_handle;
     esp_lcd_touch_handle_t handle;
+    SemaphoreHandle_t interrupt_semaphore;
 };
+
+static void st7123_touch_interrupt_callback(esp_lcd_touch_handle_t tp) {
+    struct st7123_touch_state *state = tp->config.user_data;
+    BaseType_t pxHigherPriorityTaskWoken;
+    xSemaphoreGiveFromISR(state->interrupt_semaphore, &pxHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(pxHigherPriorityTaskWoken);
+}
 
 esp_err_t st7123_touch_init(const st7123_touch_config_t *config, st7123_touch_t *touch) {
     esp_err_t ret;
@@ -51,6 +57,36 @@ esp_err_t st7123_touch_init(const st7123_touch_config_t *config, st7123_touch_t 
         return ret;
     }
 
+    if (config->interrupt) {
+        state->interrupt_semaphore = xSemaphoreCreateBinary();
+        if (!state->interrupt_semaphore) {
+            esp_lcd_touch_del(state->handle);
+            esp_lcd_panel_io_del(state->io_handle);
+            free(state);
+            return ESP_ERR_NO_MEM;
+        }
+
+        ret = gpio_config(&(gpio_config_t){
+            .mode = GPIO_MODE_INPUT,
+            .pin_bit_mask = 1 << config->int_gpio,
+            .intr_type = GPIO_INTR_NEGEDGE,
+        });
+        if (ret != ESP_OK) {
+            esp_lcd_touch_del(state->handle);
+            esp_lcd_panel_io_del(state->io_handle);
+            free(state);
+            return ret;
+        }
+
+        ret = esp_lcd_touch_register_interrupt_callback_with_data(state->handle, st7123_touch_interrupt_callback, state);
+        if (ret != ESP_OK) {
+            esp_lcd_touch_del(state->handle);
+            esp_lcd_panel_io_del(state->io_handle);
+            free(state);
+            return ret;
+        }
+    }
+
     *touch = state;
     return ESP_OK;
 }
@@ -75,4 +111,8 @@ int st7123_touch_read(st7123_touch_t touch, esp_lcd_touch_point_data_t *points, 
     uint8_t count = 0;
     esp_lcd_touch_get_data(touch->handle, points, &count, max_points);
     return count;
+}
+
+void st7123_touch_wait_interrupt(st7123_touch_t touch) {
+    xSemaphoreTake(touch->interrupt_semaphore, portMAX_DELAY);
 }
