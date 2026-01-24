@@ -15,8 +15,12 @@ static uint8_t button_mask(hid_device_mouse_button_t button) {
 }
 
 static void send_report(uint8_t buttons, int8_t dx, int8_t dy, int8_t wheel) {
-    uint8_t report[4] = {buttons, dx, dy, wheel};
-    hid_device_send_report(MOUSE_REPORT_ID, report, sizeof(report), false);
+    uint8_t *report = malloc(4);
+    report[0] = buttons;
+    report[1] = dx;
+    report[2] = dy;
+    report[3] = wheel;
+    hid_device_send_report(MOUSE_REPORT_ID, report, sizeof(report), true);
 }
 
 void hid_device_mouse_init(void) {

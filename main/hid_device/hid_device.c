@@ -303,6 +303,7 @@ static hid_device_state_t state_inactive_event_handler(hid_device_msg_t *msg) {
 static void state_all_event_handler(hid_device_msg_t *msg) {
     if (msg->type == HID_DEVICE_MSG_SEND_REPORT) {
         if (hid_device_is_connected()) {
+            ESP_LOG_BUFFER_HEX_LEVEL(TAG, msg->report.data, msg->report.size, ESP_LOG_INFO);
             esp_hidd_dev_input_set(hid_dev, 0, msg->report.report_id, msg->report.data, msg->report.size);
         }
         if (msg->report.auto_free) {

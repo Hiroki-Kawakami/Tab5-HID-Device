@@ -5,6 +5,8 @@
 
 #include "layout_screen.h"
 #include "display_mux.h"
+#include "hid_device_keyboard.h"
+#include "hid_device_mouse.h"
 #include "esp_log.h"
 
 static const char *TAG = "LayoutScreen";
@@ -13,16 +15,32 @@ static const char *TAG = "LayoutScreen";
 typedef struct {
     const layout_input_t *input;
     uint8_t touched;
+    union {
+        struct {
+            bool moved;
+        } trackpad;
+    };
 } active_input_state_t;
 
 // MARK: Key
 static void key_touch_press(active_input_state_t *state, uint8_t track_id, uint16_t x, uint16_t y) {
+    hid_device_keyboard_press_key(state->input->key);
     display_mux_layout_draw_region(display_mux_layout_active_image,
         state->input->region.x, state->input->region.y, state->input->region.width, state->input->region.height);
 }
 static void key_touch_release(active_input_state_t *state, uint8_t track_id) {
+    hid_device_keyboard_release_key(state->input->key);
     display_mux_layout_draw_region(display_mux_layout_base_image,
         state->input->region.x, state->input->region.y, state->input->region.width, state->input->region.height);
+}
+
+// MARK: Trackpad
+static void trackpad_touch_press(active_input_state_t *state, uint8_t track_id, uint16_t x, uint16_t y) {
+    state->trackpad.moved = false;
+}
+static void trackpad_touch_move(active_input_state_t *state, uint8_t track_id, uint16_t x, uint16_t y, int16_t dx, int16_t dy) {
+    state->trackpad.moved = true;
+    hid_device_mouse_move(dx, dy);
 }
 
 // MARK: Touch Handles
@@ -43,6 +61,10 @@ static const struct {
     [LAYOUT_INPUT_TYPE_KEY] = {
         .press = key_touch_press,
         .release = key_touch_release,
+    },
+    [LAYOUT_INPUT_TYPE_TRACKPAD] = {
+        .press = trackpad_touch_press,
+        .move = trackpad_touch_move,
     },
 };
 
