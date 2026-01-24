@@ -40,7 +40,7 @@ static void trackpad_touch_press(active_input_state_t *state, uint8_t track_id, 
 }
 static void trackpad_touch_move(active_input_state_t *state, uint8_t track_id, uint16_t x, uint16_t y, int16_t dx, int16_t dy) {
     state->trackpad.moved = true;
-    hid_device_mouse_move(dx, dy);
+    hid_device_mouse_move(dx + dx / 2, dy + dy / 2);
 }
 
 // MARK: Touch Handles
@@ -70,13 +70,13 @@ static const struct {
 
 #define GET_CALLBACK(state) (touch_callback[state->input->type])
 static void invoke_callback_press(active_input_state_t *state, esp_lcd_touch_point_data_t *point) {
-    ESP_LOGI(TAG, "Press: [%d] x=%d, y=%d", point->track_id, point->x, point->y);
+    // ESP_LOGI(TAG, "Press: [%d] x=%d, y=%d", point->track_id, point->x, point->y);
     if (GET_CALLBACK(state).press) {
         GET_CALLBACK(state).press(state, point->track_id, point->x, point->y);
     }
 }
 static void invoke_callback_add(active_input_state_t *state, esp_lcd_touch_point_data_t *point) {
-    ESP_LOGI(TAG, "Add: [%d] x=%d, y=%d", point->track_id, point->x, point->y);
+    // ESP_LOGI(TAG, "Add: [%d] x=%d, y=%d", point->track_id, point->x, point->y);
     if (GET_CALLBACK(state).add) {
         GET_CALLBACK(state).add(state, point->track_id, point->x, point->y);
     }
@@ -85,19 +85,19 @@ static void invoke_callback_move(active_input_state_t *state, esp_lcd_touch_poin
     int16_t dx = point->x - last_touch_points[point->track_id].data.x;
     int16_t dy = point->y - last_touch_points[point->track_id].data.y;
     if (dx == 0 && dy == 0) return;
-    ESP_LOGI(TAG, "Move: [%d] x=%d, y=%d, dx=%d, dy=%d", point->track_id, point->x, point->y, dx, dy);
+    // ESP_LOGI(TAG, "Move: [%d] x=%d, y=%d, dx=%d, dy=%d", point->track_id, point->x, point->y, dx, dy);
     if (GET_CALLBACK(state).move) {
         GET_CALLBACK(state).move(state, point->track_id, point->x, point->y, dx, dy);
     }
 }
 static void invoke_callback_remove(active_input_state_t *state, uint8_t track_id) {
-    ESP_LOGI(TAG, "Remove: [%d]", track_id);
+    // ESP_LOGI(TAG, "Remove: [%d]", track_id);
     if (GET_CALLBACK(state).remove) {
         GET_CALLBACK(state).remove(state, track_id);
     }
 }
 static void invoke_callback_release(active_input_state_t *state, uint8_t track_id) {
-    ESP_LOGI(TAG, "Release: [%d]", track_id);
+    // ESP_LOGI(TAG, "Release: [%d]", track_id);
     if (GET_CALLBACK(state).release) {
         GET_CALLBACK(state).release(state, track_id);
     }

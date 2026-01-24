@@ -303,7 +303,7 @@ static hid_device_state_t state_inactive_event_handler(hid_device_msg_t *msg) {
 static void state_all_event_handler(hid_device_msg_t *msg) {
     if (msg->type == HID_DEVICE_MSG_SEND_REPORT) {
         if (hid_device_is_connected()) {
-            ESP_LOG_BUFFER_HEX_LEVEL(TAG, msg->report.data, msg->report.size, ESP_LOG_INFO);
+            // ESP_LOG_BUFFER_HEX_LEVEL(TAG, msg->report.data, msg->report.size, ESP_LOG_INFO);
             esp_hidd_dev_input_set(hid_dev, 0, msg->report.report_id, msg->report.data, msg->report.size);
         }
         if (msg->report.auto_free) {
@@ -318,7 +318,7 @@ static void hid_device_task(void *param) {
         if (!xQueueReceive(hid_event_queue, &msg, portMAX_DELAY)) {
             continue;
         }
-        ESP_LOGI(TAG, "Recv Msg: event=%d, state=%d", msg.type, current_state);
+        // ESP_LOGI(TAG, "Recv Msg: event=%d, state=%d", msg.type, current_state);
 
         typedef hid_device_state_t (*event_handler_t)(hid_device_msg_t *msg);
         const event_handler_t hdlr[] = {
