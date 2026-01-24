@@ -6,6 +6,7 @@
 #include "hid_device.h"
 #include "layouts/layout.h"
 #include "screens/connect_screen.h"
+#include "screens/layout_screen.h"
 #include "display_mux.h"
 
 static const char *TAG = "main";
@@ -17,12 +18,12 @@ static void update_screen_type(hid_device_state_t current, hid_device_state_t pr
     ESP_LOGI(TAG, "update_screen_type: %d->%d", prev, current);
     if (prev == HID_DEVICE_STATE_BEGIN) {
         if (current == HID_DEVICE_STATE_PAIRING) {
-            connect_screen_open(lv_screen_active(), &(connect_screen_config_t){
+            connect_screen_open(&(connect_screen_config_t){
                 .mode = CONNECT_SCREEN_MODE_PAIRING,
             });
             return;
         } else if (current == HID_DEVICE_STATE_WAIT_CONNECT) {
-            connect_screen_open(lv_screen_active(), &(connect_screen_config_t){
+            connect_screen_open(&(connect_screen_config_t){
                 .mode = CONNECT_SCREEN_MODE_CONNECT,
                 .device_name = "Device",
             });
@@ -30,37 +31,24 @@ static void update_screen_type(hid_device_state_t current, hid_device_state_t pr
         }
     }
     if (current == HID_DEVICE_STATE_PAIRING) {
-        lv_obj_t *screen = lv_obj_create(NULL);
-        connect_screen_open(screen, &(connect_screen_config_t){
+        connect_screen_open(&(connect_screen_config_t){
             .mode = CONNECT_SCREEN_MODE_PAIRING,
             .cancellable = true,
         });
-        lv_screen_load(screen);
     } else if (current == HID_DEVICE_STATE_WAIT_CONNECT) {
-        lv_obj_t *screen = lv_obj_create(NULL);
-        connect_screen_open(screen, &(connect_screen_config_t){
+        connect_screen_open(&(connect_screen_config_t){
             .mode = CONNECT_SCREEN_MODE_CONNECT,
             .device_name = "Device",
         });
-        lv_screen_load(screen);
     } else if (current == HID_DEVICE_STATE_ACTIVE) {
-        lv_obj_t *screen = lv_obj_create(NULL);
-        const layout_config_t *config = _layout_head->config;
-        display_mux_layout_load_images(config->base_image, config->active_image);
-        display_mux_switch_mode(DISPLAY_MUX_MODE_LAYOUT);
-        lv_screen_load(screen);
+        layout_screen_open(_layout_head->config);
     }
-}
-static void update_screen_type_async(void *user_data) {
-    hid_device_notify_t *notify = user_data;
-    update_screen_type(notify->state.current, notify->state.prev);
-    lv_free(notify);
 }
 static void hid_device_notify_callback(hid_device_notify_t *notify, void *user_data) {
     if (notify->type == HID_DEVICE_NOTIFY_STATE_CHANGED) {
-        hid_device_notify_t *copy = lv_malloc(sizeof(hid_device_notify_t));
-        *copy = *notify;
-        lv_async_call(update_screen_type_async, copy);
+        lv_lock();
+        update_screen_type(notify->state.current, notify->state.prev);
+        lv_unlock();
     }
 }
 

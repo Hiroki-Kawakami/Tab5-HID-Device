@@ -23,7 +23,7 @@ typedef struct {
     layout_input_type_t type;
     struct {
         uint16_t x, y, width, height;
-    } size;
+    } region;
     union {
         uint32_t key;
     };

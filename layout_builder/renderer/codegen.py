@@ -17,7 +17,7 @@ class Input:
         self.attr = kwargs
 
     def generate(self) -> str:
-        generated = f'.type = LAYOUT_INPUT_TYPE_{self.type}, .size = {{ {self.x}, {self.y}, {self.width}, {self.height} }}'
+        generated = f'.type = LAYOUT_INPUT_TYPE_{self.type}, .region = {{ {self.x}, {self.y}, {self.width}, {self.height} }}'
         if self.type == 'KEY':
             generated += f', .key = HID_DEVICE_KEY_{self.attr['item']}'
         return f'{{ {generated} }},'

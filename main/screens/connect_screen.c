@@ -4,6 +4,7 @@
  */
 
 #include "connect_screen.h"
+#include "display_mux.h"
 #include "hid_device.h"
 #include <string.h>
 
@@ -270,7 +271,8 @@ static void screen_delete_cb(lv_event_t *e) {
     }
 }
 
-void connect_screen_open(lv_obj_t *screen, connect_screen_config_t *config) {
+void connect_screen_open(connect_screen_config_t *config) {
+    lv_obj_t *screen = lv_obj_create(NULL);
     connect_screen_t *connect_screen = (connect_screen_t*)lv_malloc(sizeof(connect_screen_t));
     hid_device_add_notify_callback(hid_device_notify_callback, connect_screen);
     lv_obj_set_user_data(screen, connect_screen);
@@ -280,4 +282,7 @@ void connect_screen_open(lv_obj_t *screen, connect_screen_config_t *config) {
     connect_screen->screen = screen;
     create_navigation_bar(connect_screen);
     create_connect_indicator(connect_screen);
+
+    display_mux_switch_mode(DISPLAY_MUX_MODE_GUI);
+    display_mux_gui_screen_load(screen);
 }

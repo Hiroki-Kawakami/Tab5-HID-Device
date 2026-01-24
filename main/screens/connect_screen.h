@@ -14,4 +14,4 @@ typedef struct {
     bool cancellable;
 } connect_screen_config_t;
 
-void connect_screen_open(lv_obj_t *screen, connect_screen_config_t *config);
+void connect_screen_open(connect_screen_config_t *config);
