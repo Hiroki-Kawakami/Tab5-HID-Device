@@ -85,8 +85,8 @@ static const layout_input_t layout_inputs[] = {
     { .type = LAYOUT_INPUT_TYPE_KEY, .region = { 916, 539, 116, 80 }, .key = HID_DEVICE_KEY_UP },
     { .type = LAYOUT_INPUT_TYPE_KEY, .region = { 916, 620, 116, 80 }, .key = HID_DEVICE_KEY_UP },
     { .type = LAYOUT_INPUT_TYPE_TRACKPAD, .region = { 384, 460, 512, 260 } },
-    { .type = LAYOUT_INPUT_TYPE_KEY, .region = { 20, 600, 172, 100 }, .key = HID_DEVICE_KEY_MOUSE_BUTTON_1 },
-    { .type = LAYOUT_INPUT_TYPE_KEY, .region = { 192, 600, 172, 100 }, .key = HID_DEVICE_KEY_MOUSE_BUTTON_2 },
+    { .type = LAYOUT_INPUT_TYPE_MOUSE_BUTTON, .region = { 20, 600, 172, 100 }, .mouse_button = HID_DEVICE_MOUSE_BUTTON_LEFT },
+    { .type = LAYOUT_INPUT_TYPE_MOUSE_BUTTON, .region = { 192, 600, 172, 100 }, .mouse_button = HID_DEVICE_MOUSE_BUTTON_RIGHT },
 };
 static const layout_config_t layout_config = {
     .title = "1. US",

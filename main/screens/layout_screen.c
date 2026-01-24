@@ -8,8 +8,9 @@
 #include "hid_device_keyboard.h"
 #include "hid_device_mouse.h"
 #include "esp_log.h"
+#include "driver/gptimer.h"
 
-static const char *TAG = "LayoutScreen";
+[[maybe_unused]] static const char *TAG = "LayoutScreen";
 #define TOUCH_POINT_MAX (5)
 
 typedef struct {
@@ -18,9 +19,17 @@ typedef struct {
     union {
         struct {
             bool moved;
+            uint32_t start;
         } trackpad;
     };
 } active_input_state_t;
+
+static gptimer_handle_t gptimer;
+static uint32_t timestamp(void) {
+    uint64_t value;
+    ESP_ERROR_CHECK(gptimer_get_raw_count(gptimer, &value));
+    return (value & 0xffffffff);
+}
 
 // MARK: Key
 static void key_touch_press(active_input_state_t *state, uint8_t track_id, uint16_t x, uint16_t y) {
@@ -34,13 +43,31 @@ static void key_touch_release(active_input_state_t *state, uint8_t track_id) {
         state->input->region.x, state->input->region.y, state->input->region.width, state->input->region.height);
 }
 
+// MARK: Mouse Button
+static void mouse_button_touch_press(active_input_state_t *state, uint8_t track_id, uint16_t x, uint16_t y) {
+    hid_device_mouse_press_button(state->input->mouse_button);
+    display_mux_layout_draw_region(display_mux_layout_active_image,
+        state->input->region.x, state->input->region.y, state->input->region.width, state->input->region.height);
+}
+static void mouse_button_touch_release(active_input_state_t *state, uint8_t track_id) {
+    hid_device_mouse_release_button(state->input->mouse_button);
+    display_mux_layout_draw_region(display_mux_layout_base_image,
+        state->input->region.x, state->input->region.y, state->input->region.width, state->input->region.height);
+}
+
 // MARK: Trackpad
 static void trackpad_touch_press(active_input_state_t *state, uint8_t track_id, uint16_t x, uint16_t y) {
     state->trackpad.moved = false;
+    state->trackpad.start = timestamp();
 }
 static void trackpad_touch_move(active_input_state_t *state, uint8_t track_id, uint16_t x, uint16_t y, int16_t dx, int16_t dy) {
     state->trackpad.moved = true;
     hid_device_mouse_move(dx + dx / 2, dy + dy / 2);
+}
+static void trackpad_touch_release(active_input_state_t *state, uint8_t track_id) {
+    if (!state->trackpad.moved && (timestamp() - state->trackpad.start) < 200 * 1000) {
+        hid_device_mouse_click(HID_DEVICE_MOUSE_BUTTON_LEFT);
+    }
 }
 
 // MARK: Touch Handles
@@ -62,9 +89,14 @@ static const struct {
         .press = key_touch_press,
         .release = key_touch_release,
     },
+    [LAYOUT_INPUT_TYPE_MOUSE_BUTTON] = {
+        .press = mouse_button_touch_press,
+        .release = mouse_button_touch_release,
+    },
     [LAYOUT_INPUT_TYPE_TRACKPAD] = {
         .press = trackpad_touch_press,
         .move = trackpad_touch_move,
+        .release = trackpad_touch_release,
     },
 };
 
@@ -182,6 +214,16 @@ void layout_screen_on_touch(int touch_num, esp_lcd_touch_point_data_t touches[5]
 }
 
 void layout_screen_open(const layout_config_t *config) {
+    if (!gptimer) {
+        ESP_ERROR_CHECK(gptimer_new_timer(&(gptimer_config_t){
+            .clk_src = GPTIMER_CLK_SRC_DEFAULT,
+            .direction = GPTIMER_COUNT_UP,
+            .resolution_hz = 1000 * 1000,
+        }, &gptimer));
+        ESP_ERROR_CHECK(gptimer_enable(gptimer));
+        ESP_ERROR_CHECK(gptimer_start(gptimer));
+    }
+
     current_layout_config = config;
     display_mux_layout_load_images(config->base_image, config->active_image);
     display_mux_switch_mode(DISPLAY_MUX_MODE_LAYOUT);

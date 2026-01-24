@@ -5,6 +5,7 @@
 
 #pragma once
 #include "esp_lvgl_port.h"
+#include "hid_device_mouse.h"
 #include <string.h>
 
 typedef struct {
@@ -15,6 +16,7 @@ typedef struct {
 typedef enum {
     LAYOUT_INPUT_TYPE_NONE,
     LAYOUT_INPUT_TYPE_KEY,
+    LAYOUT_INPUT_TYPE_MOUSE_BUTTON,
     LAYOUT_INPUT_TYPE_TRACKPAD,
     LAYOUT_INPUT_TYPE_MAX,
 } layout_input_type_t;
@@ -26,6 +28,7 @@ typedef struct {
     } region;
     union {
         uint32_t key;
+        hid_device_mouse_button_t mouse_button;
     };
 } layout_input_t;
 

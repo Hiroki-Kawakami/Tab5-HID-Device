@@ -20,6 +20,8 @@ class Input:
         generated = f'.type = LAYOUT_INPUT_TYPE_{self.type}, .region = {{ {self.x}, {self.y}, {self.width}, {self.height} }}'
         if self.type == 'KEY':
             generated += f', .key = HID_DEVICE_KEY_{self.attr['item']}'
+        if self.type == 'MOUSE_BUTTON':
+            generated += f', .mouse_button = HID_DEVICE_MOUSE_BUTTON_{self.attr['item']}'
         return f'{{ {generated} }},'
 
 class Codegen:
@@ -56,8 +58,8 @@ class Codegen:
         self.inputs.append(Input(type='TRACKPAD', x=x, y=y, width=width, height=height))
 
     def trackpad_buttons_lr(self, x: int, y: int, width: int, height: int):
-        self.inputs.append(Input('KEY', item='MOUSE_BUTTON_1', x=x             , y=y, width=width // 2, height=height))
-        self.inputs.append(Input('KEY', item='MOUSE_BUTTON_2', x=x + width // 2, y=y, width=width // 2, height=height))
+        self.inputs.append(Input('MOUSE_BUTTON', item='LEFT' , x=x             , y=y, width=width // 2, height=height))
+        self.inputs.append(Input('MOUSE_BUTTON', item='RIGHT', x=x + width // 2, y=y, width=width // 2, height=height))
 
     def _write_image_file(self, image_name: str):
         jpg_path = f'out/layout_{self.ident}.{image_name}.jpg'
