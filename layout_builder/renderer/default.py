@@ -1,5 +1,6 @@
 import cairo
 import math
+from PIL import Image
 
 class DefaultRenderer:
     def __init__(
@@ -127,4 +128,9 @@ class DefaultRenderer:
         ctx.rotate(-math.pi / 2)
         ctx.set_source_surface(self.surface, 0, 0)
         ctx.paint()
-        rotated.write_to_png(f'out/{filename}.png')
+
+        # cairoサーフェスからPIL Imageに変換してJPEG出力
+        data = rotated.get_data()
+        pil_image = Image.frombuffer('RGBA', (h, w), data, 'raw', 'BGRA', 0, 1)
+        pil_image = pil_image.convert('RGB')
+        pil_image.save(f'out/{filename}.jpg', 'JPEG', quality=100)

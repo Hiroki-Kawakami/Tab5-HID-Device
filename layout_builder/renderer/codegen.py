@@ -60,10 +60,10 @@ class Codegen:
         self.inputs.append(Input('KEY', item='MOUSE_BUTTON_2', x=x + width // 2, y=y, width=width // 2, height=height))
 
     def _write_image_file(self, image_name: str):
-        png_path = f'out/layout_{self.ident}.{image_name}.png'
+        jpg_path = f'out/layout_{self.ident}.{image_name}.jpg'
         output_path = f'../main/layouts/image/layout_{self.ident}_{image_name}.c'
 
-        with open(png_path, 'rb') as f:
+        with open(jpg_path, 'rb') as f:
             data = f.read()
 
         # バイト配列を16バイトごとに整形

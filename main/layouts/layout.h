@@ -3,6 +3,7 @@
  * Copyright (c) 2026 Hiroki Kawakami
  */
 
+#pragma once
 #include "esp_lvgl_port.h"
 #include <string.h>
 
