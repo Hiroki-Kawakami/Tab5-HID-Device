@@ -29,7 +29,10 @@ static uint8_t gui_fb_index = 0;
 static lv_indev_t *gui_indev;
 
 static void display_mux_gui_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
-    if (display_mux_mode != DISPLAY_MUX_MODE_GUI) return;
+    if (display_mux_mode != DISPLAY_MUX_MODE_GUI) {
+        lv_display_flush_ready(disp);
+        return;
+    }
     esp_err_t err = ppa_do_scale_rotate_mirror(gui_ppa, &(ppa_srm_oper_config_t){
         .in = {
             .buffer = gui_buffer,
@@ -117,7 +120,9 @@ void display_mux_gui_screen_load_async(void *screen) {
     current_lv_screen = screen;
 }
 void display_mux_gui_screen_load(lv_obj_t *screen) {
+    lv_lock();
     lv_async_call(display_mux_gui_screen_load_async, screen);
+    lv_unlock();
 }
 
 // MARK: Layout

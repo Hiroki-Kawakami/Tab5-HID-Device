@@ -16,24 +16,10 @@ _layout_context_t *_layout_head;
 // Screen Transition
 static void update_screen_type(hid_device_state_t current, hid_device_state_t prev) {
     ESP_LOGI(TAG, "update_screen_type: %d->%d", prev, current);
-    if (prev == HID_DEVICE_STATE_BEGIN) {
-        if (current == HID_DEVICE_STATE_PAIRING) {
-            connect_screen_open(&(connect_screen_config_t){
-                .mode = CONNECT_SCREEN_MODE_PAIRING,
-            });
-            return;
-        } else if (current == HID_DEVICE_STATE_WAIT_CONNECT) {
-            connect_screen_open(&(connect_screen_config_t){
-                .mode = CONNECT_SCREEN_MODE_CONNECT,
-                .device_name = "Device",
-            });
-            return;
-        }
-    }
     if (current == HID_DEVICE_STATE_PAIRING) {
         connect_screen_open(&(connect_screen_config_t){
             .mode = CONNECT_SCREEN_MODE_PAIRING,
-            .cancellable = true,
+            .cancellable = prev != HID_DEVICE_STATE_BEGIN,
         });
     } else if (current == HID_DEVICE_STATE_WAIT_CONNECT) {
         connect_screen_open(&(connect_screen_config_t){
@@ -46,9 +32,7 @@ static void update_screen_type(hid_device_state_t current, hid_device_state_t pr
 }
 static void hid_device_notify_callback(hid_device_notify_t *notify, void *user_data) {
     if (notify->type == HID_DEVICE_NOTIFY_STATE_CHANGED) {
-        lv_lock();
         update_screen_type(notify->state.current, notify->state.prev);
-        lv_unlock();
     }
 }
 
