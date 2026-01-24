@@ -119,4 +119,12 @@ class DefaultRenderer:
         self._separator_vertical(x + width / 2, y + 10, height - 20)
 
     def write(self, filename: str):
-        self.surface.write_to_png(f'out/{filename}.png')
+        # 反時計回りに90度回転して出力
+        w, h = self.surface.get_width(), self.surface.get_height()
+        rotated = cairo.ImageSurface(cairo.FORMAT_ARGB32, h, w)
+        ctx = cairo.Context(rotated)
+        ctx.translate(0, w)
+        ctx.rotate(-math.pi / 2)
+        ctx.set_source_surface(self.surface, 0, 0)
+        ctx.paint()
+        rotated.write_to_png(f'out/{filename}.png')

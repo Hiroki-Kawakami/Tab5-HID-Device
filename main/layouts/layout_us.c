@@ -1,5 +1,9 @@
+#pragma once
 #include "hid_device_key.h"
-#include "layouts/layout.h"
+#include "layout.h"
+
+extern const layout_image_t layout_us_normal;
+extern const layout_image_t layout_us_active;
 
 static const layout_input_t layout_inputs[] = {
     { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 0, 0, 92, 60 }, .key = HID_DEVICE_KEY_ESCAPE },
@@ -84,8 +88,10 @@ static const layout_input_t layout_inputs[] = {
     { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 20, 600, 172, 100 }, .key = HID_DEVICE_KEY_MOUSE_BUTTON_1 },
     { .type = LAYOUT_INPUT_TYPE_KEY, .size = { 192, 600, 172, 100 }, .key = HID_DEVICE_KEY_MOUSE_BUTTON_2 },
 };
-const layout_config_t layout_config = {
-    .name = "1. US",
+static const layout_config_t layout_config = {
+    .title = "1. US",
+    .base_image = &layout_us_normal,
+    .active_image = &layout_us_active,
     .inputs = layout_inputs,
     .count = 81,
 };

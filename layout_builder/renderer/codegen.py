@@ -24,9 +24,15 @@ class Input:
 
 class Codegen:
     inputs: list[Input]
+    ident: str
+    title: str
+    images: list[str]
 
-    def __init__(self):
+    def __init__(self, ident: str, title: str, images: list[str]):
         self.inputs = []
+        self.ident = ident
+        self.title = title
+        self.images = images
 
     def fill(self, color: tuple[float, float, float]):
         pass
@@ -53,22 +59,68 @@ class Codegen:
         self.inputs.append(Input('KEY', item='MOUSE_BUTTON_1', x=x             , y=y, width=width // 2, height=height))
         self.inputs.append(Input('KEY', item='MOUSE_BUTTON_2', x=x + width // 2, y=y, width=width // 2, height=height))
 
-    def write(self, filename: str, layoutname: str):
+    def _write_image_file(self, image_name: str):
+        png_path = f'out/layout_{self.ident}.{image_name}.png'
+        output_path = f'../main/layouts/image/layout_{self.ident}_{image_name}.c'
+
+        with open(png_path, 'rb') as f:
+            data = f.read()
+
+        # バイト配列を16バイトごとに整形
+        hex_lines = []
+        for i in range(0, len(data), 16):
+            chunk = data[i:i+16]
+            hex_str = ', '.join(f'0x{b:02x}' for b in chunk)
+            hex_lines.append(f'    {hex_str},')
+
+        var_name = f'layout_{self.ident}_{image_name}'
+
+        with open(output_path, 'w') as f:
+            f.write('\n'.join([
+                '#include "layouts/layout.h"',
+                '',
+                'static const uint8_t data[] = {',
+                *hex_lines,
+                '};',
+                '',
+                f'const layout_image_t {var_name} = ' + '{',
+                '    .data = data,',
+                '    .size = sizeof(data),',
+                '};',
+                '',
+            ]))
+
+    def _write_impl(self):
         inputs_array = '\n'.join([
             'static const layout_input_t layout_inputs[] = {',
             *(f'    {input.generate()}' for input in self.inputs),
             '};',
         ])
         layout_def = '\n'.join([
-            f'const layout_config_t layout_config = {{',
-            f'    .name = "{layoutname}",',
+            f'static const layout_config_t layout_config = ' + '{',
+            f'    .title = "{self.title}",',
+            f'    .base_image = &layout_{self.ident}_normal,',
+            f'    .active_image = &layout_{self.ident}_active,',
             f'    .inputs = layout_inputs,',
             f'    .count = {len(self.inputs)},',
             '};',
-            'LAYOUT_REGISTER(layout_config)',
+            f'LAYOUT_REGISTER(layout_config)',
         ])
-        with open(f'out/{filename}.c', 'w') as f:
-            f.write('#include "hid_device_key.h"\n')
-            f.write('#include "layouts/layout.h"\n\n')
-            f.write(inputs_array + '\n')
-            f.write(layout_def + '\n')
+
+        with open(f'../main/layouts/layout_{self.ident}.c', 'w') as f:
+            f.write('\n'.join([
+                '#pragma once',
+                '#include "hid_device_key.h"',
+                '#include "layout.h"',
+                '',
+                *(f'extern const layout_image_t layout_{self.ident}_{img};' for img in self.images),
+                '',
+                inputs_array,
+                layout_def,
+                '',
+            ]))
+
+    def write(self):
+        for image_name in self.images:
+            self._write_image_file(image_name)
+        self._write_impl()

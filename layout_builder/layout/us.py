@@ -120,26 +120,24 @@ def trackpad_layout(renderer: Any):
     renderer.trackpad(x=1280 // 10 * 3, y=460, width=512, height=260)
     renderer.trackpad_buttons_lr(x=20, y=600, width=344, height=100)
 
+def render(renderer: Any) -> Any:
+    renderer.fill((0, 0, 0))
+    keyboard_layout(renderer)
+    trackpad_layout(renderer)
+    return renderer
+
 def build(renderer_class: Type, codegen_class: Type):
-    normal = renderer_class(
+    render(renderer_class(
         key_bg_color = (0.2, 0.2, 0.2),
         key_text_color = (1.0, 1.0, 1.0),
-    )
-    normal.fill((0, 0, 0))
-    keyboard_layout(normal)
-    trackpad_layout(normal)
-    normal.write('layout_us.normal')
-
-    active = renderer_class(
+    )).write('layout_us.normal')
+    render(renderer_class(
         key_bg_color = (0.6, 0.6, 0.6),
         key_text_color = (1.0, 1.0, 1.0),
-    )
-    active.fill((0, 0, 0))
-    keyboard_layout(active)
-    trackpad_layout(active)
-    active.write('layout_us.active')
+    )).write('layout_us.active')
 
-    code = codegen_class()
-    keyboard_layout(code)
-    trackpad_layout(code)
-    code.write('layout_us', '1. US')
+    render(codegen_class(
+        ident = 'us',
+        title = '1. US',
+        images = ['normal', 'active'],
+    )).write()
