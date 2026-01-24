@@ -67,6 +67,7 @@ static void hid_device_notify_callback(hid_device_notify_t *notify, void *user_d
 void app_main() {
     bsp_tab5_init(&(bsp_tab5_config_t){
         .display.fb_num = GUI_FB_NUM,
+        .touch.interrupt = true,
         .bluetooth.enable = true,
     });
     display_mux_setup();

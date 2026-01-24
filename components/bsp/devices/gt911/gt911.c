@@ -12,7 +12,15 @@ static const char *TAG = "GT911";
 struct gt911_touch_state {
     esp_lcd_panel_io_handle_t io_handle;
     esp_lcd_touch_handle_t handle;
+    SemaphoreHandle_t interrupt_semaphore;
 };
+
+static void gt911_touch_interrupt_callback(esp_lcd_touch_handle_t tp) {
+    struct gt911_touch_state *state = tp->config.user_data;
+    BaseType_t pxHigherPriorityTaskWoken;
+    xSemaphoreGiveFromISR(state->interrupt_semaphore, &pxHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(pxHigherPriorityTaskWoken);
+}
 
 esp_err_t gt911_touch_init(const gt911_touch_config_t *config, gt911_touch_t *touch) {
     struct gt911_touch_state *state = calloc(1, sizeof(struct gt911_touch_state));
@@ -55,6 +63,36 @@ esp_err_t gt911_touch_init(const gt911_touch_config_t *config, gt911_touch_t *to
         return ret;
     }
 
+    if (config->interrupt) {
+        state->interrupt_semaphore = xSemaphoreCreateBinary();
+        if (!state->interrupt_semaphore) {
+            esp_lcd_touch_del(state->handle);
+            esp_lcd_panel_io_del(state->io_handle);
+            free(state);
+            return ESP_ERR_NO_MEM;
+        }
+
+        ret = gpio_config(&(gpio_config_t){
+            .mode = GPIO_MODE_INPUT,
+            .pin_bit_mask = 1 << config->int_gpio,
+            .intr_type = GPIO_INTR_NEGEDGE,
+        });
+        if (ret != ESP_OK) {
+            esp_lcd_touch_del(state->handle);
+            esp_lcd_panel_io_del(state->io_handle);
+            free(state);
+            return ret;
+        }
+
+        ret = esp_lcd_touch_register_interrupt_callback_with_data(state->handle, gt911_touch_interrupt_callback, state);
+        if (ret != ESP_OK) {
+            esp_lcd_touch_del(state->handle);
+            esp_lcd_panel_io_del(state->io_handle);
+            free(state);
+            return ret;
+        }
+    }
+
     *touch = state;
     return ESP_OK;
 }
@@ -79,4 +117,8 @@ int gt911_touch_read(gt911_touch_t touch, esp_lcd_touch_point_data_t *points, ui
     uint8_t count = 0;
     esp_lcd_touch_get_data(touch->handle, points, &count, max_points);
     return count;
+}
+
+void gt911_touch_wait_interrupt(gt911_touch_t touch) {
+    xSemaphoreTake(touch->interrupt_semaphore, portMAX_DELAY);
 }
